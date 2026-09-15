@@ -70,7 +70,7 @@ def ensure_cloudflared():
     if which_cf:
         return which_cf
 
-    print(f"⏳ {BINARY_NAME} não encontrado. Baixando binário oficial da Cloudflare para sua plataforma...")
+    print(f"[INFO] {BINARY_NAME} não encontrado. Baixando binário oficial da Cloudflare para sua plataforma...")
     machine = platform.machine().lower()
 
     if IS_WINDOWS:
@@ -95,15 +95,15 @@ def ensure_cloudflared():
         urllib.request.urlretrieve(url, CLOUDFLARED)
         if not IS_WINDOWS:
             os.chmod(CLOUDFLARED, 0o755)
-        print(f"✅ {BINARY_NAME} baixado com sucesso!")
+        print(f"[OK] {BINARY_NAME} baixado com sucesso!")
         return CLOUDFLARED
     except Exception as e:
-        print(f"❌ Não foi possível baixar {BINARY_NAME} automaticamente: {e}")
+        print(f"[ERRO] Não foi possível baixar {BINARY_NAME} automaticamente: {e}")
         return None
 
 def main():
     print("=" * 70)
-    print(" 🚀 INICIANDO TÚNEL DE COLABORAÇÃO - WHITEBOARD MIPS")
+    print(" [TUNEL] INICIANDO TUNEL DE COLABORACAO - COLLAB WHITEBOARD")
     print("=" * 70)
 
     cf_bin = ensure_cloudflared()
@@ -113,16 +113,17 @@ def main():
         sys.exit(1)
 
     if not is_port_in_use(8080):
-        print("⚠️  Aviso: O servidor do whiteboard (porta 8080) parece não estar ativo.")
+        print("[AVISO] O servidor do whiteboard (porta 8080) parece não estar ativo.")
         print("Iniciando o servidor local primeiro...")
         server_py = os.path.join(BASE_DIR, 'whiteboard', 'server.py')
         subprocess.Popen([sys.executable, server_py, '--no-browser'])
         time.sleep(1.5)
 
-    print("\n⏳ Conectando aos servidores da Cloudflare...")
+    print("\n[INFO] Conectando aos servidores da Cloudflare...")
     cmd = [
         cf_bin,
         'tunnel',
+        '--edge-ip-version', '4',
         '--url', 'http://localhost:8080'
     ]
 
@@ -138,52 +139,74 @@ def main():
 
     url = None
     url_pattern = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+    connected_to_edge = False
+    edge_blocked = False
 
     start_time = time.time()
+    url_found_time = None
+
     for line in proc.stdout:
-        m = url_pattern.search(line)
-        if m:
-            url = m.group(0)
+        if not url:
+            m = url_pattern.search(line)
+            if m:
+                url = m.group(0)
+                url_found_time = time.time()
+
+        if 'Registered tunnel connection' in line or 'Connection registered' in line:
+            connected_to_edge = True
             break
+
+        if any(err in line for err in ['TLS handshake with edge error', 'forcibly closed', 'failed to dial to edge']):
+            edge_blocked = True
+            # Se já pegamos o erro e o tempo passou, podemos parar de esperar
+            if url_found_time and (time.time() - url_found_time > 4):
+                break
+
+        if url_found_time and (time.time() - url_found_time > 10):
+            break
+
         if time.time() - start_time > 35:
             break
 
     if not url:
-        print("\n❌ Não foi possível obter o link do túnel.")
+        print("\n[ERRO] Não foi possível obter o link do túnel.")
         print("Verifique sua conexão com a internet.")
         proc.terminate()
         sys.exit(1)
 
-    # Pequena pausa para propagação do DNS nos servidores da Cloudflare
-    time.sleep(3)
-    copied = copy_to_clipboard(url)
-
-    print("\n" + "=" * 70)
-    print(" 🎉 TÚNEL ATIVO COM SUCESSO!")
-    print("=" * 70)
-    print(f"\n 🔗 LINK PÚBLICO (Para amigos pela Internet):\n    👉  {url}  👈\n")
-    if copied:
-        print(" 📋 [COPIADO!] O link já está na sua área de transferência.")
-        print("    Basta dar Ctrl + V no WhatsApp ou Discord do seu amigo!")
+    if edge_blocked or not connected_to_edge:
+        print("\n" + "=" * 72)
+        print(" [AVISO IMPORTANTE] BLOQUEIO DE REDE / FIREWALL DETECTADO!")
+        print("=" * 72)
+        print(" A rede atual (ex: eduroam / rede institucional / firewall restrito)")
+        print(" está bloqueando ativamente a porta 7844 (saída de túnel da Cloudflare).")
+        print()
+        print(f" O link gerado pela Cloudflare foi:\n    -> {url}")
+        print()
+        print(" Para compartilhar com sucesso nesta rede:")
+        print(" Conecte o aplicativo Cloudflare WARP no seu computador para contornar")
+        print(" as restrições do firewall e execute novamente este script.")
+        print("=" * 72 + "\n")
     else:
-        print(" 📋 Copie o link acima e envie para seu amigo.")
+        time.sleep(1)
+        copied = copy_to_clipboard(url)
 
-    print("\n" + "-" * 70)
-    print(" 💡 DICAS IMPORTANTES:")
-    print(" 1. NO SEU PC: Você não precisa usar esse link. Use http://localhost:8080")
-    print(" 2. NO MESMO WI-FI: No outro PC/celular na mesma casa, é mais rápido usar:")
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        print(f"    👉  http://{local_ip}:8080")
-    except Exception:
-        pass
-    print(" 3. DNS: Se abrir pela internet der 'DNS_PROBE', aguarde 10 segundos")
-    print("    para o domínio propagar e atualize a página (F5).")
-    print(" 4. NÃO FECHE ESTA JANELA! Se fechar, o túnel cai na hora.")
-    print("=" * 70 + "\n")
+        print("\n" + "=" * 70)
+        print(" [OK] TUNEL CLOUDFLARE ATIVO COM SUCESSO!")
+        print("=" * 70)
+        print(f"\n [LINK DO QUADRO] (Para enviar aos seus amigos):\n    ->  {url}\n")
+        if copied:
+            print(" [COPIADO] O link já está na sua área de transferência.")
+            print("    Basta dar Ctrl + V no WhatsApp ou Discord do seu amigo!")
+        else:
+            print(" [LINK] Copie o link acima e envie para seu amigo.")
+
+        print("\n" + "-" * 70)
+        print(" [DICAS IMPORTANTES]:")
+        print(" 1. NO SEU PC: Continue usando http://localhost:8080 normalmente.")
+        print(" 2. SEUS AMIGOS: Podem abrir pelo PC, celular ou tablet sem login.")
+        print(" 3. NÃO FECHE ESTA JANELA! Se fechar, o compartilhamento cai na hora.")
+        print("=" * 70 + "\n")
 
     sys.stdout.flush()
 

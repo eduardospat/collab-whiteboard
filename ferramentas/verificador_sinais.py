@@ -162,7 +162,7 @@ def consultar_instrucao(nome):
 
     if match:
         print("=" * 65)
-        print(f" 🎯 SINAIS DE CONTROLE MONOCICLO: {match.upper()}")
+        print(f" [SINAIS DE CONTROLE MONOCICLO]: {match.upper()}")
         print("=" * 65)
         for sig, val in TABELA_MONOCICLO[match].items():
             print(f"  {sig:12} : {val}")
@@ -174,10 +174,10 @@ def consultar_instrucao(nome):
 
 def exibir_passos_multiciclo():
     print("=" * 75)
-    print(" 🔄 OS 5 PASSOS DE EXECUÇÃO DO MIPS MULTICICLO")
+    print(" [OS 5 PASSOS DE EXECUCAO DO MIPS MULTICICLO]")
     print("=" * 75)
     for passo, dados in TABELA_MULTICICLO_PASSOS.items():
-        print(f"\n📌 {passo}:")
+        print(f"\n* {passo}:")
         print(f"   Transferência (RTL): {dados['RTL']}")
         print(f"   Sinais Ativos:      {dados['Sinais']}")
     print("\n" + "=" * 75)

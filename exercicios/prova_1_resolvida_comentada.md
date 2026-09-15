@@ -5,7 +5,7 @@ A prova vale **10,0 pontos** e é composta por **3 questões de criação/modifi
 
 ---
 
-## 🎯 O Formato da Prova: O que o professor cobra?
+## O Formato da Prova: O que o professor cobra?
 
 A prova avalia se você é capaz de:
 1. **Identificar limitações do hardware existente** (ex: falta de portas de leitura/escrita, multiplexadores que não selecionam o registrador desejado).
@@ -15,7 +15,7 @@ A prova avalia se você é capaz de:
 
 ---
 
-## 📝 Questão 1 (3,0 pontos): Instrução `add3 $rd, $rs, $rt` (Monociclo)
+## Questão 1 (3,0 pontos): Instrução `add3 $rd, $rs, $rt` (Monociclo)
 
 ### Enunciado:
 > *"A instrução `add3` ao ser incorporada no MIPS pode aumentar a eficiência do processador pela diminuição no número total de instruções executadas ao desenvolver a soma de 3 operandos. Desenhe e explique as modificações no datapath e defina os sinais de controle do MIPS Monociclo para adicionar essa instrução."*
@@ -60,7 +60,7 @@ A prova avalia se você é capaz de:
 
 ---
 
-## 📝 Questão 2 (3,0 pontos): Instrução `subabs $rd, $rs, $rt` (Monociclo)
+## Questão 2 (3,0 pontos): Instrução `subabs $rd, $rs, $rt` (Monociclo)
 
 ### Enunciado:
 > *"Operações com módulo são muito utilizadas em processamento digital de sinais, a instrução `subabs` ao ser incorporada no MIPS pode aumentar a eficiência do processador neste tipo de aplicações. Desenhe e explique as modificações no datapath e defina os sinais de controle do MIPS Monociclo para adicionar essa instrução."*
@@ -105,7 +105,7 @@ A prova avalia se você é capaz de:
 
 ---
 
-## 📝 Questão 3 (4,0 pontos): Instrução `relu $rs` no MIPS Multiciclo
+## Questão 3 (4,0 pontos): Instrução `relu $rs` no MIPS Multiciclo
 
 ### Enunciado:
 > *"A ReLU é uma abreviação para rectified linear unit, uma função de ativação largamente utilizada em redes neurais. Ela produz resultados no intervalo $[0, \infty)$. A função ReLU retorna 0 para todos os valores negativos, e o próprio valor para valores positivos. Desenhe e explique as modificações no datapath e na máquina de estados do MIPS Multiciclo para adicionar essa instrução."*

@@ -12,7 +12,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 def calcular_desempenho(latencias, mix, nome_cenario="Cenário Personalizado"):
     print("=" * 70)
-    print(f" 📊 ANÁLISE DE DESEMPENHO: {nome_cenario}")
+    print(f" [ANALISE DE DESEMPENHO]: {nome_cenario}")
     print("=" * 70)
 
     # Latências dos blocos (em ps ou ns)
@@ -31,7 +31,7 @@ def calcular_desempenho(latencias, mix, nome_cenario="Cenário Personalizado"):
 
     t_clock_mono = max(t_lw, t_r, t_sw, t_beq)
 
-    print("\n⏱️  1. PROCESSADOR MONOCICLO (CPI = 1.0):")
+    print("\n[1] PROCESSADOR MONOCICLO (CPI = 1.0):")
     print(f"   - Latência LW (Caminho Crítico): {t_lw:.2f}")
     print(f"   - Latência Tipo R:              {t_r:.2f}")
     print(f"   - Latência SW:                  {t_sw:.2f}")
@@ -65,7 +65,7 @@ def calcular_desempenho(latencias, mix, nome_cenario="Cenário Personalizado"):
 
     cpi_medio = (p_lw * cpi_lw) + (p_sw * cpi_sw) + (p_r * cpi_r) + (p_beq * cpi_beq) + (p_j * cpi_j)
 
-    print("\n⏱️  2. PROCESSADOR MULTICICLO:")
+    print("\n[2] PROCESSADOR MULTICICLO:")
     print(f"   - Período de Clock (Maior Estágio):  {t_clock_multi:.2f}")
     print(f"   - Mix de Instruções:")
     print(f"     * LW   ({p_lw*100:4.1f}%): {cpi_lw} ciclos")
@@ -80,7 +80,7 @@ def calcular_desempenho(latencias, mix, nome_cenario="Cenário Personalizado"):
     tempo_medio_multi = cpi_medio * t_clock_multi
     speedup = tempo_medio_mono / tempo_medio_multi
 
-    print("\n🚀 3. COMPARAÇÃO FINAL:")
+    print("\n[3] COMPARACAO FINAL:")
     print(f"   - Tempo médio por instrução (Mono):  {tempo_medio_mono:.2f}")
     print(f"   - Tempo médio por instrução (Multi): {tempo_medio_multi:.2f}")
     if speedup > 1.0:

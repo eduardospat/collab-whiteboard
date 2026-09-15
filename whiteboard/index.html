@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Whiteboard de Arquitetura de Computadores (Mono & Multiciclo)</title>
+  <title>Collab Whiteboard · Hub de Estudos Colaborativo</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,78 +13,136 @@
   <div class="app-container">
     <!-- Top Header & Navigation -->
     <header class="top-bar">
-      <div class="brand">
-        <span class="brand-icon">⚡</span>
-        <div class="brand-info">
-          <div class="brand-title">Whiteboard MIPS</div>
-          <div class="brand-subtitle">Monociclo & Multiciclo · Prova 1</div>
+      <!-- Left: Hub Seletor de Matéria & Caderno -->
+      <div class="hub-nav" id="hubNav">
+        <div class="hub-breadcrumb">
+          <div class="hub-pill" title="Matéria ativa">
+            <span class="hub-pill-icon">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </span>
+            <select id="subjectSelect" class="hub-select" aria-label="Selecione a matéria"></select>
+            <button id="btnNewSubject" class="hub-inline-btn" title="Adicionar Matéria" aria-label="Adicionar Matéria">
+              <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <span class="hub-sep">/</span>
+          <div class="hub-pill" title="Caderno ativo">
+            <span class="hub-pill-icon">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
+            <select id="boardSelect" class="hub-select" aria-label="Selecione o caderno"></select>
+            <button id="btnNewBoard" class="hub-inline-btn" title="Adicionar Caderno" aria-label="Adicionar Caderno">
+              <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button id="btnManageBoards" class="hub-inline-btn" title="Configurações do Caderno (Renomear / Excluir)" aria-label="Configurações do Caderno">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Quick Template Selector & Visual Gallery Button -->
-      <div class="template-selector-group">
-        <button id="btnOpenGallery" class="btn btn-primary" title="Abrir catálogo visual com todos os diagramas">
-          📁 <span class="btn-text">Galeria de Diagramas</span>
+      <!-- Center: Galeria de Materiais da Matéria -->
+      <div class="header-center">
+        <button id="btnOpenGallery" class="btn btn-primary btn-gallery" title="Abrir catálogo e materiais de estudo desta matéria">
+          <svg class="ui-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="btn-text">Materiais</span>
         </button>
-
-        <select id="templateSelect" title="Selecione um diagrama para carregar imediatamente">
-          <option value="">-- Carregamento Rápido --</option>
-          <optgroup label="🏆 Prova Real Oficial (UFSM)" id="optgroup-exam"></optgroup>
-          <optgroup label="✏️ Incompletos (Para Você Preencher / Treinar)" id="optgroup-incomplete"></optgroup>
-          <optgroup label="📖 Completos (Referência & Estudo)" id="optgroup-complete"></optgroup>
-          <optgroup label="⚡ Os 5 Passos do Multiciclo" id="optgroup-steps"></optgroup>
-          <optgroup label="🎯 Exercícios dos Slides" id="optgroup-exercises"></optgroup>
-        </select>
       </div>
 
-      <!-- Actions & AI Sync -->
-      <!-- Actions & AI Sync -->
+      <!-- Right: Actions & Tools -->
       <div class="top-actions">
-        <div id="syncBadge" class="sync-badge idle" title="Status de sincronização com o assistente de IA">
-          <span class="badge-dot"></span>
-          <span id="syncText">Pronto</span>
-        </div>
-        <button id="btnCollaborate" class="btn btn-secondary" title="Sessão Colaborativa (convidar amigos para desenhar juntos)">
-          👥 <span class="btn-text">Colaborar</span>
-          <span id="collabBadge" class="collab-badge connected" title="Participantes na sessão">1</span>
+        <!-- Botão Compartilhar Board via Cloudflare -->
+        <button id="btnShareCloudflare" class="btn btn-share" title="Abrir quadro para amigos pela Internet (Cloudflare)">
+          <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span class="btn-text">Compartilhar</span>
         </button>
-        <button id="btnUndo" class="btn btn-secondary" title="Desfazer ação anterior (Ctrl + Z)" disabled>
-          ↩️ <span class="btn-text">Desfazer</span>
+
+        <!-- Colaboração e Usuários Conectados -->
+        <button id="btnCollaborate" class="btn btn-secondary btn-icon-only" title="Participantes e Sessão Colaborativa">
+          <svg class="ui-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span id="collabBadge" class="collab-badge connected">1</span>
         </button>
-        <button id="btnRedo" class="btn btn-secondary" title="Refazer ação desfeita (Ctrl + Y ou Ctrl + Shift + Z)" disabled>
-          ↪️ <span class="btn-text">Refazer</span>
-        </button>
-        <button id="btnGridToggle" class="btn btn-secondary" title="Alternar grade de fundo (Pontos / Linhas / Nenhuma)">
-          ⊞ <span class="btn-text">Grade: Pontos</span>
-        </button>
+
+        <!-- Desfazer / Refazer -->
         <div class="btn-group">
-          <button id="btnSaveAI" class="btn btn-primary" title="Salva o quadro completo otimizado para que a IA possa analisar (Ctrl + S)">
-            💾 <span class="btn-text">Salvar p/ IA</span>
+          <button id="btnUndo" class="btn btn-secondary btn-icon-only" title="Desfazer (Ctrl + Z)" disabled>
+            <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
-          <button id="btnSaveAIFocus" class="btn btn-primary btn-focus" title="Salva exatamente a visão/zoom atual da tela para a IA">
-            🎯 <span class="btn-text">Foco</span>
+          <button id="btnRedo" class="btn btn-secondary btn-icon-only" title="Refazer (Ctrl + Y)" disabled>
+            <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
+
+        <!-- Grade Alternável -->
+        <div class="dropdown" id="gridDropdown">
+          <button id="btnGridToggle" class="btn btn-secondary" title="Alternar grade de fundo">
+            <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span id="gridBtnText" class="btn-text">Grade</span>
+            <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="dropdown-menu" id="gridMenuContent">
+            <button class="dropdown-item grid-option" data-grid="dots">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="7" cy="7" r="1.5"/><circle cx="17" cy="7" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/></svg>
+              <span>Pontilhado (Diagramas)</span>
+            </button>
+            <button class="dropdown-item grid-option" data-grid="graph">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+              <span>Milimetrado (Gráficos)</span>
+            </button>
+            <button class="dropdown-item grid-option" data-grid="ruled">
+              <svg class="ui-icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+              <span>Pautado (Caderno)</span>
+            </button>
+            <button class="dropdown-item grid-option" data-grid="blank">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              <span>Branco Liso</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Menu Salvar e Exportar -->
         <div class="dropdown" id="exportDropdown">
-          <button id="btnExportMenu" class="btn btn-secondary" title="Opções de Exportação e Backup">
-            📥 <span class="btn-text">Exportar</span> ▾
+          <button id="btnExportMenu" class="btn btn-secondary" title="Opções de Salvamento e Backup">
+            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span class="btn-text">Salvar</span>
+            <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="dropdown-menu" id="exportMenuContent">
-            <button id="btnExportPNG" class="dropdown-item">🖼️ Baixar Imagem PNG (Visão Atual)</button>
-            <button id="btnExportFullPNG" class="dropdown-item">📐 Baixar Imagem PNG (Tudo)</button>
+            <button id="btnSaveAI" class="dropdown-item">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Salvar Quadro (Auto-sync IA)</span>
+            </button>
+            <button id="btnSaveAIFocus" class="dropdown-item">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              <span>Salvar Foco / Zoom Atual</span>
+            </button>
             <div class="dropdown-divider"></div>
-            <button id="btnExportJSON" class="dropdown-item">💾 Fazer Backup do Quadro (JSON)</button>
+            <button id="btnExportPNG" class="dropdown-item">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Baixar Imagem PNG (Visão Atual)</span>
+            </button>
+            <button id="btnExportFullPNG" class="dropdown-item">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              <span>Baixar Imagem PNG (Tudo)</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button id="btnExportJSON" class="dropdown-item">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              <span>Fazer Backup do Quadro (JSON)</span>
+            </button>
             <label class="dropdown-item file-label" style="cursor:pointer; margin:0;">
-              📂 Restaurar Backup (JSON)
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span>Restaurar Backup (JSON)</span>
               <input type="file" id="importJsonInput" accept=".json" style="display:none;">
             </label>
           </div>
         </div>
-        <button id="btnShortcuts" class="btn btn-icon" title="Ver todos os atalhos do teclado (?)">
-          ⌨️
+
+        <button id="btnToggleSidebar" class="btn btn-secondary btn-icon-only" title="Fórmulas e consultas">
+          <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         </button>
-        <button id="btnToggleSidebar" class="btn btn-icon" title="Abrir/fechar aba de consultas rápidas e fórmulas">
-          📖 <span class="btn-text">Fórmulas & FSM</span>
+        <button id="btnShortcuts" class="btn btn-secondary btn-icon-only" title="Atalhos do teclado (?)">
+          <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="8" y1="16" x2="16" y2="16"/></svg>
         </button>
       </div>
     </header>
@@ -92,115 +150,153 @@
     <!-- Main Workspace -->
     <div class="workspace">
       <!-- Left Docked Tool Palette -->
+      <!-- Minimalist Floating Tool Palette (Excalidraw Style) -->
       <aside class="tool-palette" id="toolPalette">
-        <div class="palette-header">
-          <span class="palette-title">FERRAMENTAS</span>
-          <button id="btnTogglePalette" class="btn-toggle-palette" title="Ocultar menu de ferramentas (Recolher)">◀</button>
-        </div>
-
-        <div class="tool-group">
+        <!-- Main Primary Tools (Only 4 tools + Stroke + Downward Arrow) -->
+        <div class="palette-main">
+          <button class="tool-btn" data-tool="select" title="Seleção por Área e Mover (V ou S)">
+            <svg viewBox="0 0 24 24"><path d="M4 2l11 11-4.5 1 3.5 7-2 1-3.5-7L4 18V2z"/></svg>
+            <span class="tool-shortcut">V</span>
+          </button>
           <button class="tool-btn active" data-tool="pen" title="Caneta Livre (P)">
             <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-            <span class="tool-name">Caneta</span>
-          </button>
-          <button class="tool-btn" data-tool="highlighter" title="Marca-Texto / Destaque de Barramento (H)">
-            <svg viewBox="0 0 24 24"><path d="M15.24 3.76a2.5 2.5 0 0 1 3.53 0l1.47 1.47a2.5 2.5 0 0 1 0 3.53L12 17H7v-5l8.24-8.24zM3 21h18v-2H3v2z"/></svg>
-            <span class="tool-name">Destaque</span>
-          </button>
-          <button class="tool-btn" data-tool="arrow" title="Seta de Barramento / Sinal (A)">
-            <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-            <span class="tool-name">Seta</span>
-          </button>
-          <button class="tool-btn" data-tool="line" title="Linha Reta / Fio (L)">
-            <svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-            <span class="tool-name">Linha</span>
-          </button>
-          <button class="tool-btn" data-tool="rect" title="Retângulo / Bloco / Registrador (R)">
-            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span class="tool-name">Bloco</span>
-          </button>
-          <button class="tool-btn" data-tool="mux" title="Multiplexador MUX (M)">
-            <svg viewBox="0 0 24 24"><polygon points="6,3 18,7 18,17 6,21" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span class="tool-name">MUX</span>
-          </button>
-          <button class="tool-btn" data-tool="alu" title="Símbolo ULA / ALU (U)">
-            <svg viewBox="0 0 24 24"><polygon points="5,3 19,8 19,16 5,21 5,14 8,12 5,10" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span class="tool-name">ULA</span>
-          </button>
-          <button class="tool-btn" data-tool="text" title="Texto / Fórmulas (T)">
-            <svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>
-            <span class="tool-name">Texto</span>
-          </button>
-          <button class="tool-btn" data-tool="select" title="Seleção por Área e Mover (S ou V) — Arraste no quadro para selecionar múltiplos elementos">
-            <svg viewBox="0 0 24 24"><path d="M7 2l11 11-4.5 1 3.5 7-2 1-3.5-7L7 19V2z"/></svg>
-            <span class="tool-name">Seleção</span>
+            <span class="tool-shortcut">P</span>
           </button>
           <button class="tool-btn" data-tool="eraser" title="Borracha (E)">
             <svg viewBox="0 0 24 24"><path d="M16.24 3.56l4.95 4.94c.78.79.78 2.05 0 2.84L12 20.53a4.008 4.008 0 0 1-5.66 0L2.81 17c-.78-.79-.78-2.05 0-2.84l9.19-9.19a4.008 4.008 0 0 1 5.66 0l-1.42-1.41zM5.64 15.59l4.95 4.95a2.003 2.003 0 0 0 2.83 0l6.36-6.36-4.95-4.95L5.64 15.59z"/></svg>
-            <span class="tool-name">Borracha</span>
+            <span class="tool-shortcut">E</span>
           </button>
-          <button class="tool-btn" data-tool="pan" title="Mover Quadro / Pan (Espaço)">
-            <svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
-            <span class="tool-name">Pan</span>
+          <button class="tool-btn" data-tool="text" title="Texto / Fórmulas (T)">
+            <svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>
+            <span class="tool-shortcut">T</span>
           </button>
-        </div>
 
-        <div class="divider"></div>
-
-        <!-- Color Presets -->
-        <div class="palette-colors">
-          <div class="color-dot active" data-color="#1e293b" style="background:#1e293b;" title="Preto/Grafite (Geral)"></div>
-          <div class="color-dot" data-color="#ef4444" style="background:#ef4444;" title="Vermelho (Sinais de Controle / Escrita)"></div>
-          <div class="color-dot" data-color="#2563eb" style="background:#2563eb;" title="Azul (Barramento de Dados / PC)"></div>
-          <div class="color-dot" data-color="#10b981" style="background:#10b981;" title="Verde (ALU Out / Sucesso)"></div>
-          <div class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6;" title="Roxo (Seleções MUX / Desvio)"></div>
-          <div class="color-dot" data-color="#f59e0b" style="background:#f59e0b;" title="Laranja (Caminho Crítico / Atraso)"></div>
-          <div class="color-dot" data-color="#06b6d4" style="background:#06b6d4;" title="Ciano"></div>
-        </div>
-
-        <!-- Stroke Width Slider & Presets -->
-        <div class="stroke-size-box">
-          <div class="stroke-size-header">
-            <span class="stroke-size-label">ESPESSURA</span>
-            <span id="strokeSizeLabel" class="stroke-size-value">2.5 px</span>
-          </div>
-          <div class="stroke-slider-container">
-            <input type="range" id="strokeSizeSlider" min="0.5" max="36" step="0.5" value="2.5" title="Ajustar grossura da caneta (0.5px a 36px)">
-            <div class="stroke-preview-circle-wrap" title="Prévia real da espessura">
+          <!-- Stroke Size Tool Button -->
+          <button class="tool-btn stroke-tool-btn" id="btnStrokeMenu" title="Tamanho da Caneta (Clique para ajustar)">
+            <div class="stroke-preview-circle">
               <div id="strokePreviewDot" class="stroke-preview-dot"></div>
             </div>
-          </div>
-          <div class="stroke-quick-chips">
-            <button class="size-chip" data-size="1" title="Ultra Fina (1px)">1</button>
-            <button class="size-chip active" data-size="2.5" title="Padrão (2.5px)">2.5</button>
-            <button class="size-chip" data-size="5" title="Média (5px)">5</button>
-            <button class="size-chip" data-size="12" title="Grossa (12px)">12</button>
-            <button class="size-chip" data-size="24" title="Extra Grossa (24px)">24</button>
-          </div>
+            <span class="tool-shortcut stroke-badge" id="strokeSizeBadge">2.5</span>
+          </button>
+
+          <div class="palette-separator"></div>
+
+          <!-- Downward Arrow (Setinha pra baixo expandindo opções) -->
+          <button id="btnTogglePalette" class="btn-toggle-palette" title="Mais ferramentas e opções (Expandir)">
+            <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
         </div>
 
-        <div class="divider"></div>
 
-        <!-- Image Paste / Upload -->
-        <div class="tool-group">
-          <label class="tool-btn" title="Inserir Imagem do Computador">
-            <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-            <span class="tool-name">Upload</span>
-            <input type="file" id="fileInput" accept="image/*" style="display:none;">
-          </label>
-          <button id="btnClearCanvas" class="tool-btn danger" title="Limpar todo o quadro">
-            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-            <span class="tool-name">Limpar</span>
+        <!-- Secondary Options Container (Hidden until downward arrow clicked) -->
+        <div class="palette-extra" id="paletteExtra">
+          <div class="palette-separator"></div>
+          <div class="palette-section-label">FORMAS</div>
+          <div class="tool-group-secondary">
+            <button class="tool-btn" data-tool="rect" title="Retângulo / Bloco (R)">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">R</span>
+            </button>
+            <button class="tool-btn" data-tool="diamond" title="Losango / Decisão (D)">
+              <svg viewBox="0 0 24 24"><polygon points="12,3 21,12 12,21 3,12" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">D</span>
+            </button>
+            <button class="tool-btn" data-tool="circle" title="Círculo / Elipse (O ou C)">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">O</span>
+            </button>
+            <button class="tool-btn" data-tool="arrow" title="Seta (A)">
+              <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+              <span class="tool-shortcut">A</span>
+            </button>
+            <button class="tool-btn" data-tool="line" title="Linha Reta (L)">
+              <svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              <span class="tool-shortcut">L</span>
+            </button>
+            <button class="tool-btn" data-tool="highlighter" title="Marca-Texto / Destaque (H)">
+              <svg viewBox="0 0 24 24"><path d="M15.24 3.76a2.5 2.5 0 0 1 3.53 0l1.47 1.47a2.5 2.5 0 0 1 0 3.53L12 17H7v-5l8.24-8.24zM3 21h18v-2H3v2z"/></svg>
+              <span class="tool-shortcut">H</span>
+            </button>
+            <button class="tool-btn" data-tool="sticky" title="Post-it / Nota Adesiva (N)">
+              <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h9l6-6V5c0-1.1-.9-2-2-2zm-5 16v-4h4l-4 4z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">N</span>
+            </button>
+            <button class="tool-btn" data-tool="axes" title="Eixos Cartesianos X/Y (X)">
+              <svg viewBox="0 0 24 24"><path d="M4 3v17h17M4 3l-2 3h4L4 3zM21 20l-3-2v4l3-2zM4 12h3M4 6h3M10 20v-3M16 20v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="tool-shortcut">X</span>
+            </button>
+            <button class="tool-btn" data-tool="mux" title="Multiplexador MUX (M)">
+              <svg viewBox="0 0 24 24"><polygon points="6,3 18,7 18,17 6,21" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">M</span>
+            </button>
+            <button class="tool-btn" data-tool="alu" title="Símbolo ULA / ALU (U)">
+              <svg viewBox="0 0 24 24"><polygon points="5,3 19,8 19,16 5,21 5,14 8,12 5,10" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span class="tool-shortcut">U</span>
+            </button>
+            <button class="tool-btn" data-tool="pan" title="Mover Quadro / Pan (Espaço)">
+              <svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+              <span class="tool-shortcut">␣</span>
+            </button>
+          </div>
+
+          <div class="palette-separator"></div>
+
+          <!-- All Colors -->
+          <div class="palette-section-label">CORES</div>
+          <div class="palette-colors">
+            <div class="color-dot active" data-color="#1e293b" style="background:#1e293b;" title="Preto/Grafite"></div>
+            <div class="color-dot" data-color="#ef4444" style="background:#ef4444;" title="Vermelho"></div>
+            <div class="color-dot" data-color="#2563eb" style="background:#2563eb;" title="Azul"></div>
+            <div class="color-dot" data-color="#10b981" style="background:#10b981;" title="Verde"></div>
+            <div class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6;" title="Roxo"></div>
+            <div class="color-dot" data-color="#f59e0b" style="background:#f59e0b;" title="Laranja"></div>
+            <div class="color-dot" data-color="#06b6d4" style="background:#06b6d4;" title="Ciano"></div>
+          </div>
+
+          <div class="palette-separator"></div>
+
+          <!-- Actions -->
+          <div class="palette-actions">
+            <label class="tool-btn action-btn" title="Inserir Imagem do Computador">
+              <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <input type="file" id="fileInput" accept="image/*" style="display:none;">
+            </label>
+            <button id="btnClearCanvas" class="tool-btn action-btn danger" title="Limpar todo o quadro">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+          </div>
+
+          <div class="palette-separator"></div>
+
+          <!-- Collapse Arrow at the bottom of expanded view -->
+          <button id="btnCollapsePalette" class="btn-toggle-palette" title="Recolher menu de ferramentas">
+            <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
           </button>
         </div>
       </aside>
+
+      <!-- Floating Popover for Stroke Size Adjustment (Completely unclipped) -->
+      <div class="stroke-mini-popover" id="strokeMiniPopover" style="display: none;">
+        <div class="popover-header">
+          <span>ESPESSURA</span>
+          <span id="strokeSizeLabel" class="stroke-size-value">2.5 px</span>
+        </div>
+        <input type="range" id="strokeSizeSlider" min="0.5" max="36" step="0.5" value="2.5" title="Ajustar grossura da caneta (0.5px a 36px)">
+        <div class="stroke-quick-chips">
+          <button class="size-chip" data-size="1" title="Ultra Fina (1px)">1</button>
+          <button class="size-chip active" data-size="2.5" title="Padrão (2.5px)">2.5</button>
+          <button class="size-chip" data-size="5" title="Média (5px)">5</button>
+          <button class="size-chip" data-size="12" title="Grossa (12px)">12</button>
+          <button class="size-chip" data-size="24" title="Extra Grossa (24px)">24</button>
+        </div>
+      </div>
 
       <!-- Canvas Area -->
       <main class="canvas-container" id="canvasWrapper">
         <canvas id="whiteboardCanvas"></canvas>
         <div id="eraserCursor" class="eraser-cursor"></div>
         <div class="canvas-hint" id="canvasHint">
-          💡 Dica: Cole qualquer print com <b>Ctrl + V</b>, ou abra a <b>Galeria de Diagramas</b> no topo para carregar e desenhar!
+          <span class="hint-tag">DICA</span> Cole imagens com <b>Ctrl + V</b> ou abra a galeria em <b>Materiais</b> no topo para carregar enunciados.
         </div>
         <!-- Zoom HUD -->
         <div class="zoom-hud">
@@ -208,7 +304,10 @@
           <span id="zoomLevel">100%</span>
           <button id="btnZoomIn" title="Aumentar Zoom (+)">+</button>
           <button id="btnZoomReset" title="Zoom Padrão 100% (0)">1:1</button>
-          <button id="btnZoomFit" title="Enquadrar Desenho Centralizado na Tela (F)">🎯 Enquadrar</button>
+          <button id="btnZoomFit" title="Enquadrar Desenho Centralizado na Tela (F)">
+            <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            <span>Enquadrar</span>
+          </button>
         </div>
       </main>
 
@@ -218,7 +317,7 @@
       <!-- Right Collapsible Study Sidebar -->
       <aside class="study-sidebar closed" id="studySidebar">
         <div class="sidebar-header">
-          <h3>📚 Referência Rápida para a Prova</h3>
+          <h3>Referência Rápida para a Prova</h3>
           <button id="btnCloseSidebar" class="close-btn" title="Fechar painel">&times;</button>
         </div>
 
@@ -301,7 +400,7 @@
 
           <!-- Tab 3: Exercícios -->
           <div class="tab-pane" id="tab-exercicios">
-            <h4>🏆 Questões da Prova Real (UFSM)</h4>
+            <h4>Questões da Prova Real (UFSM)</h4>
             <div class="exercise-card" onclick="loadTemplateByName('prova_q1_add3.jpg')">
               <span class="ex-badge" style="background:#eab308; color:#0f172a; font-weight:700;">PROVA Q1</span>
               <b>Q1: add3 $rd, $rs, $rt (3.0 pts)</b>
@@ -366,37 +465,39 @@
             <h4>Comunicação com o Assistente</h4>
             <p>Quando você pedir correções ou análise no chat ("olha o quadro que fiz"), as anotações do assistente aparecerão aqui e no quadro.</p>
             <div id="aiFeedbackContainer" class="ai-feedback-box">
-              <i>Nenhum comentário recente da IA. Desenhe no quadro e clique em <b>Salvar para IA</b>, depois me chame no chat!</i>
+              <i>Nenhum comentário recente da IA. Desenhe no quadro e clique em <b>Salvar Quadro</b>, depois me chame no chat!</i>
             </div>
-            <button id="btnRefreshFeedback" class="btn btn-secondary btn-full">🔄 Atualizar Feedback</button>
+            <button id="btnRefreshFeedback" class="btn btn-secondary btn-full">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <span>Atualizar Feedback</span>
+            </button>
           </div>
         </div>
       </aside>
     </div>
   </div>
 
-  <!-- Visual Template Gallery Modal -->
+  <!-- Subject-Specific Visual Materials Gallery Modal -->
   <div id="galleryModal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
-          <h2>📐 Galeria de Diagramas da Matéria</h2>
-          <p>Escolha um diagrama em branco para completar ou um completo para estudar e desenhar por cima</p>
+          <h2>Galeria de Materiais · <span id="gallerySubjectTitle" style="color:#60a5fa;">Matéria</span></h2>
+          <p>Adicione e consulte resumos, exercícios, provas e diagramas exclusivos desta matéria</p>
         </div>
         <button id="btnCloseGallery" class="close-btn" title="Fechar galeria">&times;</button>
       </div>
 
-      <div class="modal-toolbar">
-        <div class="gallery-filter-buttons">
+      <div class="modal-toolbar" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <div class="gallery-filter-buttons" id="galleryFilterButtons">
           <button class="filter-btn active" data-category="all">Todos</button>
-          <button class="filter-btn" data-category="🏆 Prova Real (UFSM)">🏆 Prova Real (UFSM)</button>
-          <button class="filter-btn" data-category="Incompletos (Para Praticar)">✏️ Em Branco (Para Completar)</button>
-          <button class="filter-btn" data-category="Completos (Referência)">📖 Completos (Referência)</button>
-          <button class="filter-btn" data-category="Passos Multiciclo">⚡ 5 Passos Multiciclo</button>
-          <button class="filter-btn" data-category="Exercícios dos Slides">🎯 Exercícios dos Slides</button>
         </div>
-        <div class="gallery-info-badge" style="font-size:11px; color:#93c5fd; background:rgba(59,130,246,0.15); padding:5px 10px; border-radius:6px; border:1px solid rgba(59,130,246,0.3);">
-          ➕ Adiciona ao quadro sem apagar nada
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="file" id="materialFileInput" accept="image/*,.pdf,.svg" style="display:none;">
+          <button id="btnUploadMaterial" class="btn btn-primary" title="Adicionar imagem, exercício ou resumo nesta matéria">
+            <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Adicionar Material</span>
+          </button>
         </div>
       </div>
 
@@ -411,62 +512,38 @@
     <div class="modal-card collab-modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
-          <h2>👥 Sessão Colaborativa em Tempo Real</h2>
+          <h2>Sessão Colaborativa em Tempo Real</h2>
           <p>Convide amigos para desenhar, estudar circuitos e resolver exercícios no mesmo quadro</p>
         </div>
         <button id="btnCloseCollab" class="close-btn" title="Fechar">&times;</button>
       </div>
 
       <div class="collab-modal-body">
-        <!-- Section 1: Local Wi-Fi (Super simple) -->
+        <!-- Section 1: Online via Cloudflare -->
         <div class="collab-card highlight">
           <div class="collab-card-header">
-            <span class="collab-card-icon">📡</span>
+            <span class="collab-card-icon">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
             <div>
-              <div class="collab-card-title">Mesmo Wi-Fi / Rede Local (Mais Fácil)</div>
-              <div class="collab-card-subtitle">Qualquer amigo conectado ao mesmo Wi-Fi entra direto pelo navegador</div>
-            </div>
-          </div>
-          <div class="collab-url-box">
-            <input type="text" id="collabLocalUrl" readonly value="Carregando link local..." />
-            <button id="btnCopyLocalUrl" class="btn btn-primary" title="Copiar link para a área de transferência">
-              📋 <span class="btn-text">Copiar Link</span>
-            </button>
-          </div>
-          <p class="collab-tip">
-            💡 <b>Zero complicação:</b> Seu amigo só precisa colar esse link no Chrome, Edge ou navegador do tablet/celular. Não precisa instalar nada nem criar conta!
-          </p>
-        </div>
-
-        <!-- Section 2: Online / Tunnels (Friends outside local Wi-Fi) -->
-        <div class="collab-card">
-          <div class="collab-card-header">
-            <span class="collab-card-icon">🌐</span>
-            <div>
-              <div class="collab-card-title">Pela Internet (Amigos fora da sua casa)</div>
-              <div class="collab-card-subtitle">Para quem está em outra rede ou em outra cidade</div>
+              <div class="collab-card-title">Compartilhamento Online (Cloudflare)</div>
+              <div class="collab-card-subtitle">Abra o quadro para seus colegas entrarem e desenharem juntos</div>
             </div>
           </div>
           <p class="collab-desc">
-            Basta rodar um comando gratuito no seu terminal para gerar um link público sem cadastro:
+            Use o botão <b>Compartilhar</b> na barra superior para gerar o link público oficial e copiar automaticamente para seus amigos.
           </p>
-          <div class="collab-cmd-box">
-            <code>npx localtunnel --port 8080</code>
-            <button id="btnCopyTunnelCmd" class="btn btn-secondary btn-sm" title="Copiar comando">Copiar</button>
-          </div>
-          <div class="collab-cmd-box" style="margin-top:6px;">
-            <code>.\cloudflared.exe tunnel --edge-ip-version 4 --protocol http2 --url http://localhost:8080</code>
-            <button id="btnCopyCloudflareCmd" class="btn btn-secondary btn-sm" title="Copiar comando">Copiar</button>
-          </div>
           <p class="collab-tip">
-            💡 Ou dê dois cliques no arquivo <b>iniciar_tunel.bat</b> na pasta do projeto! Copie a URL pública gerada (ex: <i>https://xxxx.trycloudflare.com</i>) e envie para seus amigos.
+            <span class="tip-badge">DICA</span> Seus colegas só precisam abrir o link gerado no navegador (PC, tablet ou celular), sem criar conta ou instalar nada.
           </p>
         </div>
 
         <!-- Section 3: Profile & Cursor Customization -->
         <div class="collab-card">
           <div class="collab-card-header">
-            <span class="collab-card-icon">👤</span>
+            <span class="collab-card-icon">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
             <div>
               <div class="collab-card-title">Seu Perfil no Quadro</div>
               <div class="collab-card-subtitle">Como seus amigos verão seu cursor e nome</div>
@@ -493,7 +570,7 @@
 
         <!-- Section 4: Live Status -->
         <div class="collab-status-bar">
-          <span class="collab-status-indicator" id="collabStatusIndicator">🟢</span>
+          <span class="collab-status-indicator online" id="collabStatusIndicator"><span class="live-pulse-dot"></span></span>
           <span id="collabStatusText">Conectado ao servidor colaborativo · 1 participante</span>
         </div>
       </div>
@@ -505,7 +582,7 @@
     <div class="modal-card" style="max-width: 680px;">
       <div class="modal-header">
         <div class="modal-title-group">
-          <h2>⌨️ Atalhos de Teclado & Guia Rápido</h2>
+          <h2>Atalhos de Teclado & Guia Rápido</h2>
           <p>Produtividade máxima para desenhar datapaths, sinais e resolver listas</p>
         </div>
         <button id="btnCloseShortcuts" class="close-btn" title="Fechar">&times;</button>
@@ -513,35 +590,204 @@
       <div class="modal-body" style="padding: 20px; overflow-y: auto;">
         <div class="shortcuts-grid">
           <div class="shortcut-group">
-            <h4 style="color:#60a5fa; margin-bottom:10px; font-size:12.5px;">✏️ Ferramentas de Desenho</h4>
+            <h4 style="color:#60a5fa; margin-bottom:10px; font-size:12.5px;">Ferramentas Universais</h4>
             <table class="shortcuts-table">
               <tr><td><kbd>P</kbd></td><td>Caneta Livre (Stylus / Mouse)</td></tr>
               <tr><td><kbd>H</kbd></td><td>Marca-texto / Destaque de Barramento</td></tr>
               <tr><td><kbd>L</kbd></td><td>Linha Reta / Fio</td></tr>
-              <tr><td><kbd>A</kbd></td><td>Seta de Sinal / Barramento</td></tr>
+              <tr><td><kbd>A</kbd></td><td>Seta de Sinal / Vetor</td></tr>
               <tr><td><kbd>R</kbd></td><td>Retângulo / Bloco Operacional</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Círculo / Elipse (Grafos & FSM)</td></tr>
+              <tr><td><kbd>D</kbd></td><td>Losango / Decisão (if / else)</td></tr>
+              <tr><td><kbd>X</kbd></td><td>Eixos Cartesianos X/Y (Gráficos)</td></tr>
+              <tr><td><kbd>N</kbd></td><td>Post-it / Nota Adesiva</td></tr>
+              <tr><td><kbd>T</kbd></td><td>Texto / Equações</td></tr>
               <tr><td><kbd>M</kbd></td><td>Multiplexador MUX</td></tr>
               <tr><td><kbd>U</kbd></td><td>Símbolo de ULA / ALU</td></tr>
-              <tr><td><kbd>T</kbd></td><td>Texto / Equações</td></tr>
               <tr><td><kbd>E</kbd></td><td>Borracha Circular Vetorial</td></tr>
-              <tr><td><kbd>S</kbd></td><td>Mover / Selecionar Elemento</td></tr>
+              <tr><td><kbd>S</kbd> / <kbd>V</kbd></td><td>Mover / Seleção por Área</td></tr>
             </table>
           </div>
           <div class="shortcut-group">
-            <h4 style="color:#34d399; margin-bottom:10px; font-size:12.5px;">⚡ Navegação & Ações Rápidas</h4>
+            <h4 style="color:#34d399; margin-bottom:10px; font-size:12.5px;">Navegação & Cadernos</h4>
             <table class="shortcuts-table">
               <tr><td><kbd>Espaço</kbd> + arrastar</td><td>Mover pelo quadro (Pan)</td></tr>
               <tr><td><kbd>Scroll</kbd></td><td>Zoom in / Zoom out focado no cursor</td></tr>
               <tr><td><kbd>F</kbd></td><td>Enquadrar todo o conteúdo na tela</td></tr>
               <tr><td><kbd>0</kbd></td><td>Zoom padrão 1:1 (100%)</td></tr>
-              <tr><td><kbd>G</kbd></td><td>Abrir Galeria de Diagramas da Matéria</td></tr>
-              <tr><td><kbd>Shift</kbd> + <kbd>G</kbd></td><td>Alternar Grade (Pontos / Linhas / Nenhuma)</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>G</kbd></td><td>Alternar Grade (Pontos / Milimetrado / Pautado / Liso)</td></tr>
               <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Desfazer última ação</td></tr>
               <tr><td><kbd>Ctrl</kbd> + <kbd>Y</kbd></td><td>Refazer ação desfeita</td></tr>
-              <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Colar qualquer print direto da área de transferência</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Colar print da área de transferência</td></tr>
               <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Excluir elemento selecionado</td></tr>
-              <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Salvar e sincronizar quadro para o Assistente IA</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Salvar e sincronizar com a IA</td></tr>
             </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Configurações dos Cadernos (Renomear / Excluir) -->
+  <div id="boardManageModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Configurações dos Cadernos</h2>
+          <p>Renomeie ou exclua os cadernos da matéria ativa</p>
+        </div>
+        <button id="btnCloseManageBoards" class="close-btn" title="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div class="manage-section">
+          <div id="manageBoardsList" class="manage-boards-list">
+            <!-- Populado via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Rápido: Novo Caderno -->
+  <div id="newBoardModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Novo Caderno / Quadro</h2>
+          <p id="newBoardSubjectName">Criando para a matéria atual</p>
+        </div>
+        <button id="btnCloseNewBoardModal" class="close-btn" title="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px; display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:11px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">TÍTULO DO CADERNO</label>
+          <input type="text" id="newBoardTitleInput" placeholder="Ex: Aula 3 - Integrais por Partes" style="width:100%; padding:8px 10px; background:var(--bg-primary); color:#fff; border:1px solid var(--border-color); border-radius:6px; font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">ESTILO DA FOLHA DE FUNDO</label>
+          <select id="newBoardGridSelect" style="width:100%; padding:8px 10px; background:var(--bg-primary); color:#fff; border:1px solid var(--border-color); border-radius:6px; font-size:12px;">
+            <option value="dots">Pontilhado (Moderno / Diagramas)</option>
+            <option value="graph">Papel Milimetrado (Gráficos & Geometria)</option>
+            <option value="ruled">Caderno Pautado (Anotações)</option>
+            <option value="blank">Branco Liso (Apresentação / Slides)</option>
+          </select>
+        </div>
+        <button id="btnConfirmCreateBoard" class="btn btn-primary btn-full" style="margin-top:10px;">
+          <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Criar e Abrir Caderno</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Matéria -->
+  <div id="newSubjectModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Criar Nova Matéria</h2>
+          <p>Adicione uma disciplina para organizar seus cadernos e materiais</p>
+        </div>
+        <button id="btnCloseNewSubjectModal" class="close-btn" title="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px; display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">CATEGORIA / ÍCONE</label>
+          <div class="subject-icon-grid" id="subjectEmojiPresets">
+            <button type="button" class="icon-preset-btn active" data-icon="book" title="Geral / Humanas">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="code" title="Programação / Algoritmos">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="cpu" title="Hardware / Arquitetura">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="math" title="Cálculo / Geometria">
+              <svg class="ui-icon" viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/><polyline points="4 4 20 20"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="atom" title="Física / Química">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="pen" title="Design / Desenho">
+              <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="terminal" title="Terminal / Redes">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            </button>
+            <button type="button" class="icon-preset-btn" data-icon="target" title="Provas / Exercícios">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            </button>
+          </div>
+          <input type="hidden" id="newSubjectIconInput" value="book" />
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">NOME DA MATÉRIA</label>
+          <input type="text" id="newSubjectNameInput" placeholder="Ex: Cálculo 1, Física Clássica, Algoritmos..." style="width:100%; padding:9px 12px; background:var(--bg-primary); color:#fff; border:1px solid var(--border-color); border-radius:6px; font-size:13px;" />
+        </div>
+        <button id="btnConfirmCreateSubject" class="btn btn-primary btn-full" style="padding:10px; margin-top:4px;">
+          <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Criar Matéria</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Compartilhar Quadro Online (Cloudflare Tunnel) -->
+  <div id="cloudflareModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Compartilhar Quadro Online</h2>
+          <p>Conexão direta P2P via Cloudflare Tunnel para qualquer amigo pela Internet</p>
+        </div>
+        <button id="btnCloseCloudflareModal" class="close-btn" title="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; display:flex; flex-direction:column; gap:14px;">
+        <!-- Loading State -->
+        <div id="cfLoadingState" style="display:none; text-align:center; padding:24px 10px;">
+          <div class="cf-spinner" style="width:40px; height:40px; border:3px solid rgba(59,130,246,0.2); border-top-color:#3b82f6; border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 14px;"></div>
+          <h4 style="font-size:14px; color:#f1f5f9; margin-bottom:6px;">Iniciando Túnel Seguro Cloudflare...</h4>
+          <p style="font-size:12px; color:var(--text-muted);">Gerando URL criptografada global para colaboração em tempo real...</p>
+        </div>
+
+        <!-- Active State -->
+        <div id="cfActiveState" style="display:flex; flex-direction:column; gap:14px;">
+          <div class="cf-online-banner">
+            <span class="live-pulse-dot" style="width:10px; height:10px;"></span>
+            <div>
+              <div style="font-size:13px; font-weight:700; color:#34d399;">SEU QUADRO ESTÁ ONLINE</div>
+              <div style="font-size:11.5px; color:#cbd5e1;">Seus colegas já podem acessar e desenhar junto com você.</div>
+            </div>
+          </div>
+
+          <!-- Link Público Cloudflare -->
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">LINK PÚBLICO (AMIGOS PELA INTERNET)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="cfPublicUrlInput" readonly style="flex:1; padding:8px 12px; background:var(--bg-primary); color:#60a5fa; font-weight:600; font-family:'Fira Code', monospace; border:1px solid var(--border-color); border-radius:6px; font-size:12px;" value="Carregando..." />
+              <button id="btnCopyCfUrl" class="btn btn-primary" title="Copiar link público" style="white-space:nowrap;">
+                <svg class="ui-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copiar</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="background:rgba(59,130,246,0.08); border:1px dashed rgba(59,130,246,0.25); border-radius:8px; padding:12px; font-size:11.5px; color:#cbd5e1; line-height:1.45;">
+            <b>Como seus amigos participam:</b>
+            <ul style="margin:6px 0 0 16px; padding:0;">
+              <li>Eles só precisam colar o link acima no navegador do PC, notebook, iPad ou celular.</li>
+              <li>Não precisa criar conta, login ou instalar nada.</li>
+              <li>A sincronização de caneta, formas e notas adesivas é em tempo real!</li>
+              <li>Mantenha o servidor aberto enquanto quiser manter os colegas conectados.</li>
+            </ul>
+          </div>
+
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button id="btnStopCfTunnel" class="btn btn-secondary" style="flex:1; padding:10px;" title="Encerrar compartilhamento">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <span>Encerrar Compartilhamento</span>
+            </button>
           </div>
         </div>
       </div>

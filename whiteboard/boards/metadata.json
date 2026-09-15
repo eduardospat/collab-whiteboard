@@ -1,0 +1,48 @@
+{
+  "activeBoardId": "arq-prova1",
+  "subjects": [
+    {
+      "id": "arq",
+      "name": "Arquitetura de Computadores",
+      "icon": "cpu",
+      "boards": [
+        {
+          "id": "arq-prova1",
+          "title": "Arquitetura - Prova 1 & Datapaths",
+          "gridType": "graph",
+          "createdAt": "2026-09-10T10:00:00",
+          "updatedAt": "2026-09-11T11:11:26.404675"
+        }
+      ],
+      "materials": []
+    },
+    {
+      "id": "materia-98a6",
+      "name": "que materia",
+      "icon": "que",
+      "boards": [
+        {
+          "id": "materia-98a6-caderno-1",
+          "title": "Caderno 1 · materia",
+          "gridType": "dots",
+          "createdAt": "2026-09-11T09:26:40.326173",
+          "updatedAt": "2026-09-11T09:26:40.326187"
+        }
+      ]
+    },
+    {
+      "id": "materia2-d307",
+      "name": "nao entendi materia 2",
+      "icon": "nao entendi",
+      "boards": [
+        {
+          "id": "materia2-d307-caderno-1",
+          "title": "Caderno 1 · materia 2",
+          "gridType": "dots",
+          "createdAt": "2026-09-11T09:27:03.424609",
+          "updatedAt": "2026-09-11T09:27:03.424623"
+        }
+      ]
+    }
+  ]
+}

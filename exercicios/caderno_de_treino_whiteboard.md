@@ -1,4 +1,4 @@
-# 🎯 Caderno de Treino Oficial para o Whiteboard — Prova 1
+# Caderno de Treino Oficial para o Whiteboard — Prova 1
 
 Este caderno foi formatado sem códigos matemáticos truncados para você copiar e colar qualquer enunciado diretamente na ferramenta de texto do seu Whiteboard ou rascunhar enquanto desenha.
 
@@ -6,10 +6,10 @@ Todos os templates citados já estão cadastrados no menu superior do Whiteboard
 
 ---
 
-## 🟢 BLOCO 1: Desempenho, CPI e Tempo de CPU (Cálculos de Prova)
+## BLOCO 1: Desempenho, CPI e Tempo de CPU (Cálculos de Prova)
 
 ### Exercício 1.1 — O Clássico da Prova 2024 (Nota 10,0)
-- **Template no Whiteboard:** `🏆 Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)`
+- **Template no Whiteboard:** ` Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -40,7 +40,7 @@ Fórmulas:
 ---
 
 ### Exercício 1.2 — Caminho Crítico e Período de Clock (Monociclo)
-- **Template no Whiteboard:** `🎯 Exercício 4.4: Caminho Crítico e Tempos`
+- **Template no Whiteboard:** ` Exercício 4.4: Caminho Crítico e Tempos`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -66,10 +66,10 @@ c) Qual deve ser a frequência máxima de clock deste processador Monociclo?
 
 ---
 
-## 🟡 BLOCO 2: Análise de Sinais de Controle e Falhas (Sim/Não e Por quê?)
+## BLOCO 2: Análise de Sinais de Controle e Falhas (Sim/Não e Por quê?)
 
 ### Exercício 2.1 — Falha de Sinais no Monociclo (Prova 2024)
-- **Template no Whiteboard:** `🏆 Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)` ou `📖 Monociclo Completo com Controle`
+- **Template no Whiteboard:** ` Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)` ou ` Monociclo Completo com Controle`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -94,7 +94,7 @@ Já no ADD, a escrita correta no registrador rd é mandatória!
 ---
 
 ### Exercício 2.2 — Sinais no 4º Ciclo do Multiciclo (Prova 2024)
-- **Template no Whiteboard:** `🏆 Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)` ou `⚡ Passo 4 - Load (Leitura da Memória)`
+- **Template no Whiteboard:** ` Prova 2024 - Pág 1: Desempenho e Sinais (Add, Beq, Lw)` ou ` Passo 4 - Load (Leitura da Memória)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -116,10 +116,10 @@ Analise o que acontece durante o QUARTO ciclo de relógio de cada instrução:
 
 ---
 
-## 🟠 BLOCO 3: Modificação de Datapath no Monociclo (Provas Reais)
+## BLOCO 3: Modificação de Datapath no Monociclo (Provas Reais)
 
 ### Exercício 3.1 — Instrução `add3 $rd, $rs, $rt` (Prova 2026 - 3,0 pts)
-- **Template no Whiteboard:** `🏆 Prova Q1: add3 $rd, $rs, $rt (Monociclo)`
+- **Template no Whiteboard:** ` Prova Q1: add3 $rd, $rs, $rt (Monociclo)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -147,7 +147,7 @@ Tarefas no Whiteboard:
 ---
 
 ### Exercício 3.2 — Instrução `subabs $rd, $rs, $rt` (Prova 2026 - 3,0 pts)
-- **Template no Whiteboard:** `🏆 Prova Q2: subabs $rd, $rs, $rt (Monociclo)`
+- **Template no Whiteboard:** ` Prova Q2: subabs $rd, $rs, $rt (Monociclo)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -172,7 +172,7 @@ Tarefas no Whiteboard:
 ---
 
 ### Exercício 3.3 — Instrução `jal target` (Jump and Link) no Monociclo (Prova 2024 - 4,5 pts)
-- **Template no Whiteboard:** `🏆 Prova 2024 - Pág 2: Datapaths JAL (Mono e Multi)`
+- **Template no Whiteboard:** ` Prova 2024 - Pág 2: Datapaths JAL (Mono e Multi)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -194,10 +194,10 @@ Tarefas no Whiteboard:
 
 ---
 
-## 🔴 BLOCO 4: Modificação de Datapath e FSM no Multiciclo (Provas Reais)
+## BLOCO 4: Modificação de Datapath e FSM no Multiciclo (Provas Reais)
 
 ### Exercício 4.1 — Instrução `relu $rs` no Multiciclo (Prova 2026 - 4,0 pts)
-- **Template no Whiteboard:** `🏆 Prova Q3: relu $rs (Multiciclo + FSM)`
+- **Template no Whiteboard:** ` Prova Q3: relu $rs (Multiciclo + FSM)`
 - **Enunciado para copiar no quadro:**
 
 ```text
@@ -227,7 +227,7 @@ Tarefas no Whiteboard:
 ---
 
 ### Exercício 4.2 — Instrução `jal target` no Multiciclo (Prova 2024 - 4,5 pts)
-- **Template no Whiteboard:** `🏆 Prova 2024 - Pág 2: Datapaths JAL (Mono e Multi)` e `🏆 Prova 2024 - Pág 3: FSM Multiciclo JAL`
+- **Template no Whiteboard:** ` Prova 2024 - Pág 2: Datapaths JAL (Mono e Multi)` e ` Prova 2024 - Pág 3: FSM Multiciclo JAL`
 - **Enunciado para copiar no quadro:**
 
 ```text

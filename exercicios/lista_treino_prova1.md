@@ -1,11 +1,11 @@
-# 🎯 Lista de Exercícios de Treino — Prova 1 (UFSM)
+# Lista de Exercícios de Treino — Prova 1 (UFSM)
 > **Baseada nas Provas Reais (2024 e 2026 - Prof. Mateus Beck Rutzig) e nos Slides Oficiais de Monociclo e Multiciclo.**
 
 ---
 
-## 🏛️ BLOCO 1: Projeto de Novas Instruções no Monociclo
+## ️ BLOCO 1: Projeto de Novas Instruções no Monociclo
 
-### 🔹 Exercício 1.1 (Estilo Prova Real 2026 — 3 Operandos)
+### Exercício 1.1 (Estilo Prova Real 2026 — 3 Operandos)
 **Instrução:** `sub3 $rd, $rs, $rt`  
 **Operação:** `$rd = $rs - $rt - $rd`  
 *A instrução realiza a subtração sucessiva de 3 registradores e grava o resultado final de volta em `$rd`.*
@@ -16,7 +16,7 @@
 
 ---
 
-### 🔹 Exercício 1.2 (Estilo Prova Real 2026 — Processamento de Sinal / Módulo)
+### Exercício 1.2 (Estilo Prova Real 2026 — Processamento de Sinal / Módulo)
 **Instrução:** `addabs $rd, $rs, $rt`  
 **Operação:** `$rd = |$rs + $rt|`  
 *A instrução calcula a soma de dois registradores e armazena o valor absoluto (módulo) do resultado em `$rd`.*
@@ -26,7 +26,7 @@
 
 ---
 
-### 🔹 Exercício 1.3 (Clássico dos Slides — Slide 4.2 / Patterson)
+### Exercício 1.3 (Clássico dos Slides — Slide 4.2 / Patterson)
 **Instrução:** `lwi $rt, $rs($rd)` *(Load Word Indexado)*  
 **Operação:** `$rt = Mem[$rs + $rd]`  
 *Em vez de somar um imediato de 16 bits à base, esta instrução soma o conteúdo de dois registradores (`$rs` e `$rd`) para formar o endereço de memória e grava o dado lido em `$rt`.*
@@ -36,7 +36,7 @@
 
 ---
 
-### 🔹 Exercício 1.4 (Instrução com Imediato Modificado)
+### Exercício 1.4 (Instrução com Imediato Modificado)
 **Instrução:** `addi_inc $rt, $rs, imm`  
 **Operação:** `$rt = $rs + imm + 1`  
 *Soma o registrador `$rs` com o imediato estendido em sinal e adiciona mais uma unidade (+1) ao resultado.*
@@ -47,9 +47,9 @@
 
 ---
 
-## 🏛️ BLOCO 2: Projeto de Novas Instruções e FSM no Multiciclo
+## ️ BLOCO 2: Projeto de Novas Instruções e FSM no Multiciclo
 
-### 🔹 Exercício 2.1 (Estilo Prova Real 2026 — Função de Ativação / Redes Neurais)
+### Exercício 2.1 (Estilo Prova Real 2026 — Função de Ativação / Redes Neurais)
 **Instrução:** `leaky_relu $rs`  
 **Operação:**  
 * Se `$rs > 0`: `$rs = $rs` (mantém o valor positivo)  
@@ -62,7 +62,7 @@
 
 ---
 
-### 🔹 Exercício 2.2 (Estilo Prova Real 2024 — Salto com Link / Procedimentos)
+### Exercício 2.2 (Estilo Prova Real 2024 — Salto com Link / Procedimentos)
 **Instrução:** `jal addr` *(Jump and Link no Multiciclo)*  
 **Operação:** `$31 = PC; \quad PC = PC[31:28] \parallel (IR[25:0] \ll 2)`  
 *(Salva o endereço de retorno no registrador `$ra` / `$31` e realiza o salto para o endereço alvo).*
@@ -73,7 +73,7 @@
 
 ---
 
-### 🔹 Exercício 2.3 (Instrução de Comparação Condicional)
+### Exercício 2.3 (Instrução de Comparação Condicional)
 **Instrução:** `bgtz $rs, offset` *(Branch on Greater Than Zero)*  
 **Operação:** `Se $rs > 0 \implies PC = PC + (SignExt(imm) \ll 2)`  
 1. No Ciclo 2 (Decodificação), o que a ULA calcula preventivamente?
@@ -82,7 +82,7 @@
 
 ---
 
-### 🔹 Exercício 2.4 (Instrução com Acesso Duplo à Memória)
+### Exercício 2.4 (Instrução com Acesso Duplo à Memória)
 **Instrução:** `swap ($rs), ($rt)`  
 **Operação:** Troca os valores contidos nos dois endereços de memória apontados por `$rs` e `$rt`.
 1. Quantos acessos à memória (leitura e escrita) são necessários?
@@ -93,9 +93,9 @@
 
 ---
 
-## 🏛️ BLOCO 3: Análise de Sinais e Caminho Crítico
+## ️ BLOCO 3: Análise de Sinais e Caminho Crítico
 
-### 🔹 Exercício 3.1 (Tabela Completa de Sinais do Multiciclo)
+### Exercício 3.1 (Tabela Completa de Sinais do Multiciclo)
 Preencha a tabela de sinais de controle do processador Multiciclo para cada um dos passos das seguintes instruções:
 
 | Instrução | Ciclo | MemRead | MemWrite | IorD | IRWrite | RegWrite | RegDst | MemtoReg | ALUSrcA | ALUSrcB | ALUOp | PCWrite | PCWriteCond | PCSource |
@@ -111,7 +111,7 @@ Preencha a tabela de sinais de controle do processador Multiciclo para cada um d
 
 ---
 
-### 🔹 Exercício 3.2 (Cálculo de Desempenho, CPI e Speedup)
+### Exercício 3.2 (Cálculo de Desempenho, CPI e Speedup)
 Considere as seguintes latências dos componentes de hardware:
 * **Memória (I-Mem / D-Mem):** 250 ps
 * **ULA:** 200 ps

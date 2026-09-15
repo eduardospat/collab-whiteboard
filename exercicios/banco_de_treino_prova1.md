@@ -1,7 +1,7 @@
 # Banco de Questões de Treino para a Prova 1
 
 Use estas questões para praticar diretamente no **Whiteboard**!
-Desenhe o caminho de dados ou faça os cálculos no quadro, salve com **"💾 Salvar para IA"** e peça minha avaliação no chat antes de abrir os gabaritos abaixo.
+Desenhe o caminho de dados ou faça os cálculos no quadro, salve com **" Salvar para IA"** e peça minha avaliação no chat antes de abrir os gabaritos abaixo.
 
 ---
 
@@ -14,7 +14,7 @@ Considere o datapath MIPS monociclo padrão (capaz de executar `add`, `sub`, `an
 2. O que precisa ser alterado no hardware para suportar a instrução `bne $rs, $rt, Label` (Branch if Not Equal)?
 
 <details>
-<summary><b>🔍 Ver Gabarito Comentado</b></summary>
+<summary><b> Ver Gabarito Comentado</b></summary>
 
 ### Resposta 1:
 **Sim, o hardware existente já suporta `addi` sem alterar nenhum fio do datapath!**
@@ -52,7 +52,7 @@ Descreva detalhadamente:
 - Quais sinais de controle devem ser gerados em cada passo?
 
 <details>
-<summary><b>🔍 Ver Gabarito Comentado</b></summary>
+<summary><b> Ver Gabarito Comentado</b></summary>
 
 ### Resposta:
 - **Duração:** Termina no **Passo 3** (3 ciclos totais: Ciclo 1 = Busca, Ciclo 2 = Decodificação, Ciclo 3 = Atualização do PC e Escrita em `$31`).
@@ -90,7 +90,7 @@ Considere um processador monociclo com os seguintes tempos de atraso:
    - $25\%$ LW, $10\%$ SW, $50\%$ Tipo R, $15\%$ BEQ?
 
 <details>
-<summary><b>🔍 Ver Gabarito Comentado</b></summary>
+<summary><b> Ver Gabarito Comentado</b></summary>
 
 ### 1. Latência por Instrução:
 - **`lw`:** $\text{I-Mem} + \text{RegRead} + \text{ALU} + \text{D-Mem} + \text{Mux} + \text{RegWrite(setup)}$
@@ -133,7 +133,7 @@ Um engenheiro de testes detectou que o bit de controle `MemtoReg` ficou permanen
 3. A instrução `sw $t0, 4($sp)` continuará funcionando? Justifique.
 
 <details>
-<summary><b>🔍 Ver Gabarito Comentado</b></summary>
+<summary><b> Ver Gabarito Comentado</b></summary>
 
 ### Resposta:
 1. **`lw`:** **Sim, funcionará perfeitamente**, pois a instrução `lw` exige exatamente `MemtoReg = 1` para gravar o dado vindo da memória no registrador.

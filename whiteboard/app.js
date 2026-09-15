@@ -32,7 +32,7 @@ let startX = 0;
 let startY = 0;
 
 // Data Layers
-let elements = []; // { type: 'path'|'line'|'arrow'|'rect'|'mux'|'alu'|'text'|'image', ... }
+let elements = []; // { type: 'path'|'line'|'arrow'|'rect'|'circle'|'diamond'|'axes'|'sticky'|'mux'|'alu'|'text'|'image', ... }
 let undoStack = [];
 let redoStack = [];
 let pendingUndoState = null;
@@ -56,6 +56,22 @@ let resizeStartPt = null;
 let resizeStartState = null;
 let resizeOriginalBox = null;
 
+// Multi-Board & Subject Hub State
+let activeBoardId = 'arq-prova1';
+let boardsMetadata = null;
+let currentGridType = localStorage.getItem('whiteboard_grid_type') || 'dots';
+
+// Sticky Note Colors & Presets
+const STICKY_PALETTE = [
+  { bg: '#fef08a', text: '#713f12', name: 'Amarelo' },
+  { bg: '#bae6fd', text: '#0369a1', name: 'Azul' },
+  { bg: '#bbf7d0', text: '#14532d', name: 'Verde' },
+  { bg: '#fbcfe8', text: '#831843', name: 'Rosa' },
+  { bg: '#e9d5ff', text: '#581c87', name: 'Roxo' },
+  { bg: '#fed7aa', text: '#7c2d12', name: 'Laranja' }
+];
+let currentStickyColor = STICKY_PALETTE[0];
+
 // Auto-save debounce timer
 let autoSaveTimer = null;
 
@@ -77,48 +93,48 @@ const STATIC_TEMPLATES = [
   // 0. Prova Real Oficial (UFSM)
   {
     filename: "prova_q1_add3.jpg",
-    title: "🏆 Prova Q1: add3 $rd, $rs, $rt (Monociclo)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Q1: add3 $rd, $rs, $rt (Monociclo)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Questão 1 da prova real (3.0 pts). Adicionar instrução rd = rs + rt + rd modificando o banco de registradores e inserindo 2ª ULA."
   },
   {
     filename: "prova_q2_subabs.jpg",
-    title: "🏆 Prova Q2: subabs $rd, $rs, $rt (Monociclo)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Q2: subabs $rd, $rs, $rt (Monociclo)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Questão 2 da prova real (3.0 pts). Adicionar instrução rd = |rs - rt|. Cuidado com o cálculo de módulo e seleção pelo bit de sinal!"
   },
   {
     filename: "prova_q3_relu.jpg",
-    title: "🏆 Prova Q3: relu $rs (Multiciclo + FSM)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Q3: relu $rs (Multiciclo + FSM)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Questão 3 da prova real (4.0 pts). Instrução if (rs > 0) rs = rs else rs = 0 no multiciclo com novos estados na FSM."
   },
   {
     filename: "prova1_pag_1.jpg",
-    title: "🏆 Prova Completa - Página 1 (Q1 add3)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Completa - Página 1 (Q1 add3)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Enunciado e datapath original da Questão 1 da prova."
   },
   {
     filename: "prova1_pag_2.jpg",
-    title: "🏆 Prova Completa - Página 2 (Q2 subabs)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Completa - Página 2 (Q2 subabs)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Enunciado e datapath original da Questão 2 da prova."
   },
   {
     filename: "prova1_pag_3.jpg",
-    title: "🏆 Prova Completa - Página 3 (Q3 relu)",
-    category: "🏆 Prova Real (UFSM)",
+    title: "Prova Completa - Página 3 (Q3 relu)",
+    category: "Prova Real (UFSM)",
     badge: "prova",
     badgeText: "PROVA",
     desc: "Enunciado e diagrama multiciclo original da Questão 3 da prova."
@@ -384,6 +400,27 @@ const btnOpenGallery = document.getElementById('btnOpenGallery');
 const galleryModal = document.getElementById('galleryModal');
 const btnCloseGallery = document.getElementById('btnCloseGallery');
 const galleryGrid = document.getElementById('galleryGrid');
+const gallerySubjectTitle = document.getElementById('gallerySubjectTitle');
+const galleryFilterButtons = document.getElementById('galleryFilterButtons');
+const btnUploadMaterial = document.getElementById('btnUploadMaterial');
+const materialFileInput = document.getElementById('materialFileInput');
+
+const btnShareCloudflare = document.getElementById('btnShareCloudflare');
+const cloudflareModal = document.getElementById('cloudflareModal');
+const btnCloseCloudflareModal = document.getElementById('btnCloseCloudflareModal');
+const cfLoadingState = document.getElementById('cfLoadingState');
+const cfActiveState = document.getElementById('cfActiveState');
+const cfPublicUrlInput = document.getElementById('cfPublicUrlInput');
+const btnCopyCfUrl = document.getElementById('btnCopyCfUrl');
+const btnReloadOnCfUrl = document.getElementById('btnReloadOnCfUrl');
+const btnStopCfTunnel = document.getElementById('btnStopCfTunnel');
+
+const btnNewSubject = document.getElementById('btnNewSubject');
+const newSubjectModal = document.getElementById('newSubjectModal');
+const btnCloseNewSubjectModal = document.getElementById('btnCloseNewSubjectModal');
+const newSubjectIconInput = document.getElementById('newSubjectIconInput');
+const newSubjectNameInput = document.getElementById('newSubjectNameInput');
+const btnConfirmCreateSubject = document.getElementById('btnConfirmCreateSubject');
 
 const btnSaveAI = document.getElementById('btnSaveAI');
 const btnSaveAIFocus = document.getElementById('btnSaveAIFocus');
@@ -428,6 +465,10 @@ function setStrokeSize(size, updateSlider = true) {
   if (strokeSizeLabel) {
     strokeSizeLabel.textContent = `${currentSize} px`;
   }
+  const strokeSizeBadge = document.getElementById('strokeSizeBadge');
+  if (strokeSizeBadge) {
+    strokeSizeBadge.textContent = currentSize.toString();
+  }
   updateStrokePreview();
   updateEraserCursorSize();
 
@@ -441,11 +482,16 @@ function setStrokeSize(size, updateSlider = true) {
 }
 
 function updateStrokePreview() {
+  const strokePreviewDot = document.getElementById('strokePreviewDot');
   if (strokePreviewDot) {
-    const d = Math.min(14, Math.max(2, Math.round(currentSize)));
+    const d = Math.min(16, Math.max(3, Math.round(currentSize)));
     strokePreviewDot.style.width = `${d}px`;
     strokePreviewDot.style.height = `${d}px`;
     strokePreviewDot.style.backgroundColor = currentColor;
+  }
+  const strokeSizeBadge = document.getElementById('strokeSizeBadge');
+  if (strokeSizeBadge) {
+    strokeSizeBadge.textContent = currentSize.toString();
   }
 }
 
@@ -470,17 +516,20 @@ const collabStatusIndicator = document.getElementById('collabStatusIndicator');
 
 // Initialize
 window.addEventListener('load', () => {
-  resizeCanvas();
-  populateDropdown(STATIC_TEMPLATES);
-  buildGalleryModal(STATIC_TEMPLATES);
-  loadTemplateOptions(); // fetch dynamic from server if available
-  loadSavedBoard();
-  setupEventListeners();
-  setStrokeSize(currentSize, true);
-  setupHotkeys();
-  updateUndoRedoUI();
-  setupCollabUI();
-  initWebSocket();
+  try { resizeCanvas(); } catch (e) { console.error('resizeCanvas:', e); }
+  try { populateDropdown(STATIC_TEMPLATES); } catch (e) { console.error('populateDropdown:', e); }
+  try { buildGalleryModal(STATIC_TEMPLATES); } catch (e) { console.error('buildGalleryModal:', e); }
+  try { loadTemplateOptions(); } catch (e) { console.error('loadTemplateOptions:', e); }
+  try { loadSavedBoard(); } catch (e) { console.error('loadSavedBoard:', e); }
+  try { setupEventListeners(); } catch (e) { console.error('setupEventListeners:', e); }
+  try { setStrokeSize(currentSize, true); } catch (e) { console.error('setStrokeSize:', e); }
+  try { setupHotkeys(); } catch (e) { console.error('setupHotkeys:', e); }
+  try { updateUndoRedoUI(); } catch (e) { console.error('updateUndoRedoUI:', e); }
+  try { setupCollabUI(); } catch (e) { console.error('setupCollabUI:', e); }
+  try { setupHubUI(); } catch (e) { console.error('setupHubUI:', e); }
+  try { loadBoardsMetadata(); } catch (e) { console.error('loadBoardsMetadata:', e); }
+  try { applyGridPattern(currentGridType, false); } catch (e) { console.error('applyGridPattern:', e); }
+  try { initWebSocket(); } catch (e) { console.error('initWebSocket:', e); }
 
   // Watch for container resizes dynamically
   if (window.ResizeObserver) {
@@ -489,6 +538,23 @@ window.addEventListener('load', () => {
     });
     ro.observe(wrapper);
   }
+
+  // Prevent browser viewport zoom on Ctrl+Wheel / trackpad pinch
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      if (!wrapper.contains(e.target)) {
+        handleWheel(e);
+      }
+    }
+  }, { passive: false });
+
+  // Prevent browser-level pinch-to-zoom gestures (iOS / iPad / macOS / touch trackpads)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
+    window.addEventListener(evt, (e) => {
+      e.preventDefault();
+    }, { passive: false });
+  });
 
   // Fade out hint after 8s
   setTimeout(() => {
@@ -713,15 +779,18 @@ function rehydrateImages() {
 }
 
 function drawGrid(context, mode) {
-  const gridSize = 40;
-  const startX = Math.floor((-panX / zoom) / gridSize) * gridSize - gridSize;
-  const startY = Math.floor((-panY / zoom) / gridSize) * gridSize - gridSize;
-  const endX = startX + Math.ceil(width / zoom) + gridSize * 2;
-  const endY = startY + Math.ceil(height / zoom) + gridSize * 2;
+  if (mode === 'none' || mode === 'blank') return;
 
   context.save();
+
   if (mode === 'dots') {
-    context.fillStyle = 'rgba(148, 163, 184, 0.35)';
+    const gridSize = 32;
+    const startX = Math.floor((-panX / zoom) / gridSize) * gridSize - gridSize;
+    const startY = Math.floor((-panY / zoom) / gridSize) * gridSize - gridSize;
+    const endX = startX + Math.ceil(width / zoom) + gridSize * 2;
+    const endY = startY + Math.ceil(height / zoom) + gridSize * 2;
+
+    context.fillStyle = 'rgba(148, 163, 184, 0.4)';
     const dotRadius = Math.max(0.8, 1.2 / Math.sqrt(zoom));
     for (let x = startX; x <= endX; x += gridSize) {
       for (let y = startY; y <= endY; y += gridSize) {
@@ -730,20 +799,75 @@ function drawGrid(context, mode) {
         context.fill();
       }
     }
-  } else if (mode === 'lines') {
-    context.strokeStyle = 'rgba(226, 232, 240, 0.45)';
-    context.lineWidth = 1 / zoom;
+  } else if (mode === 'graph') {
+    // Papel Milimetrado / Quadriculado: 20px linhas secundarias finas, 100px linhas mestras
+    const smallGrid = 20;
+    const largeGrid = 100;
+    const startX = Math.floor((-panX / zoom) / largeGrid) * largeGrid - largeGrid;
+    const startY = Math.floor((-panY / zoom) / largeGrid) * largeGrid - largeGrid;
+    const endX = startX + Math.ceil(width / zoom) + largeGrid * 2;
+    const endY = startY + Math.ceil(height / zoom) + largeGrid * 2;
+
+    // Linhas secundarias finas (renderiza apenas quando a densidade visual for adequada)
+    if (smallGrid * zoom >= 8) {
+      context.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+      context.lineWidth = 0.75 / zoom;
+      context.beginPath();
+      for (let x = startX; x <= endX; x += smallGrid) {
+        if (Math.abs(Math.round(x) % largeGrid) > 2) {
+          context.moveTo(x, startY);
+          context.lineTo(x, endY);
+        }
+      }
+      for (let y = startY; y <= endY; y += smallGrid) {
+        if (Math.abs(Math.round(y) % largeGrid) > 2) {
+          context.moveTo(startX, y);
+          context.lineTo(endX, y);
+        }
+      }
+      context.stroke();
+    }
+
+    // Linhas mestras destacadas
+    context.strokeStyle = 'rgba(99, 102, 241, 0.35)';
+    context.lineWidth = 1.2 / zoom;
     context.beginPath();
-    for (let x = startX; x <= endX; x += gridSize) {
+    for (let x = startX; x <= endX; x += largeGrid) {
       context.moveTo(x, startY);
       context.lineTo(x, endY);
     }
-    for (let y = startY; y <= endY; y += gridSize) {
+    for (let y = startY; y <= endY; y += largeGrid) {
       context.moveTo(startX, y);
       context.lineTo(endX, y);
     }
     context.stroke();
+  } else if (mode === 'ruled') {
+    // Caderno Pautado Universitario: linhas horizontais a cada 32px
+    const lineSpacing = 32;
+    const startY = Math.floor((-panY / zoom) / lineSpacing) * lineSpacing - lineSpacing;
+    const endY = startY + Math.ceil(height / zoom) + lineSpacing * 2;
+    const startX = -panX / zoom - 100;
+    const endX = startX + width / zoom + 200;
+
+    // Linhas pautadas azuis suaves
+    context.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+    context.lineWidth = 1 / zoom;
+    context.beginPath();
+    for (let y = startY; y <= endY; y += lineSpacing) {
+      context.moveTo(startX, y);
+      context.lineTo(endX, y);
+    }
+    context.stroke();
+
+    // Margem vertical vermelha classica de caderno
+    context.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+    context.lineWidth = 1.5 / zoom;
+    context.beginPath();
+    context.moveTo(80, startY);
+    context.lineTo(80, endY);
+    context.stroke();
   }
+
   context.restore();
 }
 
@@ -942,6 +1066,208 @@ function drawElement(context, el) {
     context.fillRect(rx, ry, rw, rh);
     context.strokeRect(rx, ry, rw, rh);
   }
+  else if (el.type === 'circle') {
+    const rx = Math.min(el.x1, el.x2);
+    const ry = Math.min(el.y1, el.y2);
+    const rw = Math.max(6, Math.abs(el.x2 - el.x1));
+    const rh = Math.max(6, Math.abs(el.y2 - el.y1));
+    const cx = rx + rw / 2;
+    const cy = ry + rh / 2;
+    context.beginPath();
+    context.ellipse(cx, cy, rw / 2, rh / 2, 0, 0, Math.PI * 2);
+    context.fillStyle = el.fillColor || 'rgba(255, 255, 255, 0.7)';
+    context.fill();
+    context.strokeStyle = el.color;
+    context.lineWidth = el.size;
+    context.stroke();
+  }
+  else if (el.type === 'diamond') {
+    const rx = Math.min(el.x1, el.x2);
+    const ry = Math.min(el.y1, el.y2);
+    const rw = Math.max(16, Math.abs(el.x2 - el.x1));
+    const rh = Math.max(16, Math.abs(el.y2 - el.y1));
+    const cx = rx + rw / 2;
+    const cy = ry + rh / 2;
+    context.beginPath();
+    context.moveTo(cx, ry);
+    context.lineTo(rx + rw, cy);
+    context.lineTo(cx, ry + rh);
+    context.lineTo(rx, cy);
+    context.closePath();
+    context.fillStyle = el.fillColor || 'rgba(255, 255, 255, 0.85)';
+    context.fill();
+    context.strokeStyle = el.color;
+    context.lineWidth = el.size;
+    context.stroke();
+    if (el.text) {
+      context.fillStyle = el.color;
+      context.font = 'bold 12px Inter, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(el.text, cx, cy);
+    }
+  }
+  else if (el.type === 'axes') {
+    const rx = Math.min(el.x1, el.x2);
+    const ry = Math.min(el.y1, el.y2);
+    const rw = Math.max(70, Math.abs(el.x2 - el.x1));
+    const rh = Math.max(70, Math.abs(el.y2 - el.y1));
+    const originX = rx + 30;
+    const originY = ry + rh - 30;
+    const topY = ry + 12;
+    const rightX = rx + rw - 12;
+
+    context.save();
+    context.strokeStyle = el.color;
+    context.fillStyle = el.color;
+    context.lineWidth = Math.max(1.5, el.size || 2);
+    context.lineCap = 'round';
+
+    // Eixo Y
+    context.beginPath();
+    context.moveTo(originX, originY);
+    context.lineTo(originX, topY);
+    context.stroke();
+
+    // Seta Eixo Y
+    context.beginPath();
+    context.moveTo(originX, topY - 7);
+    context.lineTo(originX - 5, topY + 1);
+    context.lineTo(originX + 5, topY + 1);
+    context.closePath();
+    context.fill();
+
+    // Eixo X
+    context.beginPath();
+    context.moveTo(originX, originY);
+    context.lineTo(rightX, originY);
+    context.stroke();
+
+    // Seta Eixo X
+    context.beginPath();
+    context.moveTo(rightX + 7, originY);
+    context.lineTo(rightX - 1, originY - 5);
+    context.lineTo(rightX - 1, originY + 5);
+    context.closePath();
+    context.fill();
+
+    // Ticks nos eixos
+    const stepX = (rightX - originX) / 5;
+    for (let i = 1; i <= 4; i++) {
+      const tx = originX + i * stepX;
+      context.beginPath();
+      context.moveTo(tx, originY - 4);
+      context.lineTo(tx, originY + 4);
+      context.stroke();
+    }
+    const stepY = (originY - topY) / 5;
+    for (let i = 1; i <= 4; i++) {
+      const ty = originY - i * stepY;
+      context.beginPath();
+      context.moveTo(originX - 4, ty);
+      context.lineTo(originX + 4, ty);
+      context.stroke();
+    }
+
+    // Rótulos dos eixos
+    context.font = 'bold 12px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    context.fillText('y', originX - 10, topY + 4);
+    context.textAlign = 'left';
+    context.textBaseline = 'middle';
+    context.fillText('x', rightX + 10, originY);
+    context.font = '10px Inter, sans-serif';
+    context.textAlign = 'right';
+    context.textBaseline = 'top';
+    context.fillText('0', originX - 5, originY + 4);
+
+    context.restore();
+  }
+  else if (el.type === 'sticky') {
+    context.save();
+    const x = el.x;
+    const y = el.y;
+    const w = el.width || 200;
+    const h = el.height || 180;
+    const fold = 18;
+
+    // Sombra do papel
+    context.shadowColor = 'rgba(0, 0, 0, 0.16)';
+    context.shadowBlur = 10;
+    context.shadowOffsetX = 3;
+    context.shadowOffsetY = 4;
+
+    // Corpo do Post-it com ponta dobrada
+    context.fillStyle = el.color || '#fef08a';
+    context.beginPath();
+    context.moveTo(x, y);
+    context.lineTo(x + w, y);
+    context.lineTo(x + w, y + h - fold);
+    context.lineTo(x + w - fold, y + h);
+    context.lineTo(x, y + h);
+    context.closePath();
+    context.fill();
+
+    // Reset shadow para detalhes internos
+    context.shadowColor = 'transparent';
+
+    // Dobra da ponta (orelha de papel dobrada)
+    context.fillStyle = 'rgba(0, 0, 0, 0.14)';
+    context.beginPath();
+    context.moveTo(x + w, y + h - fold);
+    context.lineTo(x + w - fold, y + h - fold);
+    context.lineTo(x + w - fold, y + h);
+    context.closePath();
+    context.fill();
+
+    // Faixa adesiva suave no topo (top tape)
+    context.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    context.fillRect(x, y, w, 22);
+
+    // Borda sutil
+    context.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+    context.lineWidth = 1;
+    context.stroke();
+
+    // Renderização do texto com quebra de linha (word-wrap)
+    context.fillStyle = el.textColor || '#713f12';
+    context.font = "500 13px 'Inter', system-ui, sans-serif";
+    context.textAlign = 'left';
+    context.textBaseline = 'top';
+
+    const padding = 12;
+    const maxTextWidth = w - padding * 2;
+    const lineHeight = 18;
+    const startTextY = y + 26;
+
+    const lines = (el.text || '').split('\n');
+    let curY = startTextY;
+
+    for (const rawLine of lines) {
+      if (curY > y + h - 20) break;
+      const words = rawLine.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const testWidth = context.measureText(testLine).width;
+        if (testWidth > maxTextWidth && currentLine) {
+          context.fillText(currentLine, x + padding, curY);
+          currentLine = word;
+          curY += lineHeight;
+          if (curY > y + h - 20) break;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (curY <= y + h - 20 && currentLine) {
+        context.fillText(currentLine, x + padding, curY);
+        curY += lineHeight;
+      }
+    }
+
+    context.restore();
+  }
   else if (el.type === 'mux') {
     const rx = Math.min(el.x1, el.x2);
     const ry = Math.min(el.y1, el.y2);
@@ -1020,9 +1346,9 @@ function drawElement(context, el) {
 
 function getElementBoundingBox(el) {
   if (!el) return null;
-  if (el.type === 'image') {
-    return { x: el.x, y: el.y, width: el.width, height: el.height };
-  } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu') {
+  if (el.type === 'image' || el.type === 'sticky') {
+    return { x: el.x, y: el.y, width: el.width || 200, height: el.height || 180 };
+  } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
     const x = Math.min(el.x1, el.x2);
     const y = Math.min(el.y1, el.y2);
     return {
@@ -1130,7 +1456,7 @@ function hitTestElement(el, px, py) {
     return false;
   }
 
-  if (el.type === 'image' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text') {
+  if (el.type === 'image' || el.type === 'sticky' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
     return px >= bbox.x - 4 && px <= bbox.x + bbox.width + 4 &&
            py >= bbox.y - 4 && py <= bbox.y + bbox.height + 4;
   }
@@ -1288,7 +1614,7 @@ function elementIntersectsArea(el, area) {
   if (!bbox) return false;
   if (!boxIntersectsBox(bbox, area)) return false;
 
-  if (el.type === 'image' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text') {
+  if (el.type === 'image' || el.type === 'sticky' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
     return true;
   }
 
@@ -1424,7 +1750,7 @@ function startSelectionDrag(pt) {
         type: 'path',
         points: el.points.map(p => ({ x: p.x, y: p.y }))
       };
-    } else if (el.type === 'image' || el.type === 'text') {
+    } else if (el.type === 'image' || el.type === 'text' || el.type === 'sticky') {
       return {
         el,
         type: el.type,
@@ -1465,7 +1791,7 @@ function updateSelectionDrag(pt) {
         el.points[i].x = Math.round((item.points[i].x + dx) * 10) / 10;
         el.points[i].y = Math.round((item.points[i].y + dy) * 10) / 10;
       }
-    } else if (item.type === 'image' || item.type === 'text') {
+    } else if (item.type === 'image' || item.type === 'text' || item.type === 'sticky') {
       el.x = Math.round((item.x + dx) * 10) / 10;
       el.y = Math.round((item.y + dy) * 10) / 10;
     } else if (item.x1 !== undefined) {
@@ -1635,11 +1961,19 @@ function fitToScreen() {
 
 // ==================== Dropdown & Gallery Builder ====================
 function populateDropdown(catalog) {
+  const optgroupExam = document.getElementById('optgroupExam');
+  const optgroupIncomplete = document.getElementById('optgroupIncomplete');
+  const optgroupComplete = document.getElementById('optgroupComplete');
+  const optgroupSteps = document.getElementById('optgroupSteps');
+  const optgroupExercises = document.getElementById('optgroupExercises');
+
+  if (!optgroupIncomplete || !optgroupComplete) return;
+
   if (optgroupExam) optgroupExam.innerHTML = '';
   optgroupIncomplete.innerHTML = '';
   optgroupComplete.innerHTML = '';
-  optgroupSteps.innerHTML = '';
-  optgroupExercises.innerHTML = '';
+  if (optgroupSteps) optgroupSteps.innerHTML = '';
+  if (optgroupExercises) optgroupExercises.innerHTML = '';
 
   catalog.forEach(t => {
     const opt = document.createElement('option');
@@ -1652,59 +1986,176 @@ function populateDropdown(catalog) {
       optgroupIncomplete.appendChild(opt);
     } else if (t.category.includes('Completos')) {
       optgroupComplete.appendChild(opt);
-    } else if (t.category.includes('Passos')) {
+    } else if (t.category.includes('Passos') && optgroupSteps) {
       optgroupSteps.appendChild(opt);
-    } else {
+    } else if (optgroupExercises) {
       optgroupExercises.appendChild(opt);
     }
   });
 }
 
+let currentSubjectMaterials = [];
+
+async function loadMaterialsForSubject(subjectId) {
+  if (!subjectId) {
+    const subjectSelect = document.getElementById('subjectSelect');
+    subjectId = subjectSelect ? subjectSelect.value : 'arq';
+  }
+
+  // Update modal header with subject name
+  if (gallerySubjectTitle) {
+    let subjName = 'Matéria';
+    if (boardsMetadata && boardsMetadata.subjects) {
+      const s = boardsMetadata.subjects.find(x => x.id === subjectId);
+      if (s) subjName = s.name;
+    }
+    gallerySubjectTitle.textContent = subjName;
+  }
+
+  try {
+    const res = await fetch(`/api/materials?subjectId=${encodeURIComponent(subjectId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      currentSubjectMaterials = data.materials || [];
+    } else {
+      currentSubjectMaterials = [];
+    }
+  } catch (err) {
+    console.warn('Erro ao buscar materiais da matéria:', err);
+    currentSubjectMaterials = (subjectId === 'arq') ? STATIC_TEMPLATES.map(t => ({
+      ...t,
+      url: `templates/${t.filename}`,
+      id: t.filename
+    })) : [];
+  }
+
+  buildGalleryFilters(currentSubjectMaterials);
+  buildGalleryModal(currentSubjectMaterials);
+}
+
+function buildGalleryFilters(materials) {
+  if (!galleryFilterButtons) return;
+  const categories = new Set();
+  materials.forEach(m => {
+    if (m.category) categories.add(m.category);
+  });
+
+  galleryFilterButtons.innerHTML = '';
+  const btnAll = document.createElement('button');
+  btnAll.className = 'filter-btn active';
+  btnAll.dataset.category = 'all';
+  btnAll.textContent = 'Todos';
+  btnAll.addEventListener('click', () => filterGallery('all'));
+  galleryFilterButtons.appendChild(btnAll);
+
+  categories.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.dataset.category = cat;
+    btn.textContent = cat;
+    btn.addEventListener('click', () => filterGallery(cat));
+    galleryFilterButtons.appendChild(btn);
+  });
+}
+
 function buildGalleryModal(catalog) {
+  if (!galleryGrid) return;
   galleryGrid.innerHTML = '';
+
+  if (!catalog || catalog.length === 0) {
+    galleryGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; color: var(--text-muted);">
+        <div style="display:flex; justify-content:center; margin-bottom: 12px;">
+          <svg class="ui-icon" style="width:42px; height:42px; stroke:#64748b;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div style="font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;">Nenhum material adicionado nesta matéria</div>
+        <p style="font-size: 12px; max-width: 400px; margin: 0 auto 16px; line-height: 1.5;">Clique no botão <b>Adicionar Material</b> acima para fazer upload de fotos, exercícios ou resumos.</p>
+      </div>
+    `;
+    return;
+  }
 
   catalog.forEach(t => {
     const card = document.createElement('div');
     card.className = 'gallery-card';
-    card.dataset.category = t.category;
+    card.dataset.category = t.category || 'Geral';
 
-    const badgeClass = `badge-${t.badge || 'completo'}`;
+    const badgeClass = t.isCustom ? 'badge-custom' : `badge-${t.badge || 'completo'}`;
 
     card.innerHTML = `
       <div>
         <div class="card-top">
-          <span class="card-badge ${badgeClass}">${t.badgeText || t.badge || 'Diagrama'}</span>
-          <span style="font-size:10px; color:#64748b;">MIPS</span>
+          <span class="card-badge ${badgeClass}">${t.badgeText || t.badge || (t.isCustom ? 'Upload' : 'Diagrama')}</span>
+          <span style="font-size:10px; color:#64748b;">${t.category || ''}</span>
         </div>
+        ${t.url ? `<img src="${t.url}" style="width:100%; height:110px; object-fit:contain; background:rgba(0,0,0,0.2); border-radius:6px; margin:6px 0;" loading="lazy" />` : ''}
         <div class="card-title">${t.title}</div>
         <div class="card-desc">${t.desc || ''}</div>
       </div>
-      <button class="card-btn">
-        <span>✏️ Carregar no Quadro</span>
-      </button>
+      <div class="card-actions-row">
+        <button class="card-btn" style="flex:1;">
+          <svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Inserir no Quadro</span>
+        </button>
+        ${t.isCustom ? `<button class="btn-delete-mat" title="Excluir este material"><svg class="ui-icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
+      </div>
     `;
 
-    card.addEventListener('click', () => {
-      loadTemplateToCanvas(`templates/${t.filename}`);
-      closeGalleryModal();
-    });
+    const btnLoad = card.querySelector('.card-btn');
+    if (btnLoad) {
+      btnLoad.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const matUrl = t.url || `templates/${t.filename}`;
+        loadTemplateToCanvas(matUrl);
+        closeGalleryModal();
+      });
+    }
+
+    const btnDel = card.querySelector('.btn-delete-mat');
+    if (btnDel) {
+      btnDel.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Excluir o material "${t.title}"?`)) return;
+        const subjectSelect = document.getElementById('subjectSelect');
+        const subjectId = subjectSelect ? subjectSelect.value : 'arq';
+        try {
+          const res = await fetch('/api/materials/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subjectId, materialId: t.id })
+          });
+          if (res.ok) {
+            showToast('Material excluído!');
+            loadMaterialsForSubject(subjectId);
+          }
+        } catch (err) {
+          console.error('Erro ao excluir material:', err);
+        }
+      });
+    }
 
     galleryGrid.appendChild(card);
   });
 }
 
 function openGalleryModal() {
+  if (!galleryModal) return;
+  const subjectSelect = document.getElementById('subjectSelect');
+  const subjId = subjectSelect ? subjectSelect.value : 'arq';
+  loadMaterialsForSubject(subjId);
   galleryModal.classList.add('open');
 }
 
 function closeGalleryModal() {
-  galleryModal.classList.remove('open');
+  if (galleryModal) galleryModal.classList.remove('open');
 }
 
 function filterGallery(category) {
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.category === category);
-  });
+  if (galleryFilterButtons) {
+    galleryFilterButtons.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.category === category);
+    });
+  }
 
   document.querySelectorAll('.gallery-card').forEach(card => {
     if (category === 'all' || card.dataset.category === category) {
@@ -1715,6 +2166,43 @@ function filterGallery(category) {
   });
 }
 
+async function uploadMaterialFile(file) {
+  if (!file) return;
+  const subjectSelect = document.getElementById('subjectSelect');
+  const subjectId = subjectSelect ? subjectSelect.value : 'arq';
+
+  const defaultTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+  const title = prompt('Título do Material:', defaultTitle) || defaultTitle;
+
+  showToast('Enviando material...');
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const res = await fetch('/api/materials/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId,
+          title,
+          image: reader.result,
+          category: 'Meus Materiais'
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('Material adicionado com sucesso!');
+        loadMaterialsForSubject(subjectId);
+      } else {
+        alert(data.detail || 'Erro ao enviar material.');
+      }
+    } catch (err) {
+      console.error('Erro no upload de material:', err);
+      showToast('Erro no envio');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 // Templates Loader from Server API (with automatic fallback)
 async function loadTemplateOptions() {
   try {
@@ -1723,7 +2211,6 @@ async function loadTemplateOptions() {
       const list = await res.json();
       if (list && list.length > 0) {
         populateDropdown(list);
-        buildGalleryModal(list);
       }
     }
   } catch (err) {
@@ -1786,7 +2273,7 @@ function loadTemplateToCanvas(url) {
     fitToScreen();
     scheduleAutoSave();
     broadcastBoardSync();
-    showToast('➕ Novo diagrama adicionado ao quadro! O conteúdo anterior foi preservado.');
+    showToast('Novo diagrama adicionado ao quadro! O conteúdo anterior foi preservado.');
     showSyncBadge('Novo diagrama adicionado!', 'synced');
   };
   img.src = url;
@@ -1839,8 +2326,50 @@ function setupEventListeners() {
     }
   });
 
-  // Zoom with Wheel
-  canvas.addEventListener('wheel', handleWheel, { passive: false });
+  // Zoom with Wheel (attached to container so events don't fire twice on bubble)
+  wrapper.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Double-click on canvas to edit Sticky Notes, Conditions, or Text
+  canvas.addEventListener('dblclick', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const pt = screenToCanvas(mouseX, mouseY);
+
+    for (let i = elements.length - 1; i >= 0; i--) {
+      const el = elements[i];
+      if (hitTestElement(el, pt.x, pt.y)) {
+        if (el.type === 'sticky') {
+          promptEditSticky(el, mouseX, mouseY);
+          return;
+        }
+        if (el.type === 'diamond') {
+          const currentTxt = el.text || '';
+          const newTxt = prompt('Texto da condição / decisão (ex: x >= 0 ?):', currentTxt);
+          if (newTxt !== null) {
+            recordState();
+            el.text = newTxt;
+            render();
+            scheduleAutoSave();
+            broadcastBoardSync();
+          }
+          return;
+        }
+        if (el.type === 'text') {
+          const currentTxt = el.text || '';
+          const newTxt = prompt('Editar texto:', currentTxt);
+          if (newTxt !== null) {
+            recordState();
+            el.text = newTxt;
+            render();
+            scheduleAutoSave();
+            broadcastBoardSync();
+          }
+          return;
+        }
+      }
+    }
+  });
 
   // Tool buttons
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
@@ -1879,24 +2408,28 @@ function setupEventListeners() {
   });
 
   // Clear button
-  btnClearCanvas.addEventListener('click', () => {
-    if (confirm('Tem certeza que deseja limpar todo o quadro?')) {
-      recordState();
-      elements = [];
-      selectedElements = [];
-      selectedElement = null;
-      render();
-      scheduleAutoSave();
-      broadcastBoardClear();
-    }
-  });
+  if (btnClearCanvas) {
+    btnClearCanvas.addEventListener('click', () => {
+      if (confirm('Tem certeza que deseja limpar todo o quadro?')) {
+        recordState();
+        elements = [];
+        selectedElements = [];
+        selectedElement = null;
+        render();
+        scheduleAutoSave();
+        broadcastBoardClear();
+      }
+    });
+  }
 
   // File upload input
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) addImageFromFile(file);
-    fileInput.value = '';
-  });
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) addImageFromFile(file);
+      fileInput.value = '';
+    });
+  }
 
   // Undo & Redo buttons
   const btnUndo = document.getElementById('btnUndo');
@@ -1906,22 +2439,33 @@ function setupEventListeners() {
 
   // Save for AI buttons
   if (btnSaveAI) {
-    btnSaveAI.addEventListener('click', () => saveToAI(true, false));
+    btnSaveAI.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (exportDropdown) exportDropdown.classList.remove('open');
+      saveToAI(true, false);
+    });
   }
   if (btnSaveAIFocus) {
-    btnSaveAIFocus.addEventListener('click', () => saveToAI(true, true));
+    btnSaveAIFocus.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (exportDropdown) exportDropdown.classList.remove('open');
+      saveToAI(true, true);
+    });
   }
 
   // Export buttons
-  if (btnExportPNG) btnExportPNG.addEventListener('click', () => {
+  if (btnExportPNG) btnExportPNG.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (exportDropdown) exportDropdown.classList.remove('open');
     exportLocalPNG();
   });
-  if (btnExportFullPNG) btnExportFullPNG.addEventListener('click', () => {
+  if (btnExportFullPNG) btnExportFullPNG.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (exportDropdown) exportDropdown.classList.remove('open');
     exportFullPNG();
   });
   if (btnExportJSON) btnExportJSON.addEventListener('click', () => {
+    e.stopPropagation();
     if (exportDropdown) exportDropdown.classList.remove('open');
     exportBoardJSON();
   });
@@ -1932,19 +2476,10 @@ function setupEventListeners() {
   });
   if (btnExportMenu) btnExportMenu.addEventListener('click', (e) => {
     e.stopPropagation();
+    const gridDropdown = document.getElementById('gridDropdown');
+    if (gridDropdown) gridDropdown.classList.remove('open');
     if (exportDropdown) exportDropdown.classList.toggle('open');
   });
-  window.addEventListener('click', () => {
-    if (exportDropdown) exportDropdown.classList.remove('open');
-  });
-
-  // Grid toggle button
-  if (btnGridToggle) {
-    btnGridToggle.addEventListener('click', toggleGrid);
-    const labels = { 'dots': 'Grade: Pontos', 'lines': 'Grade: Linhas', 'none': 'Grade: Nenhuma' };
-    const txt = btnGridToggle.querySelector('.btn-text');
-    if (txt) txt.textContent = labels[gridMode];
-  }
 
   // Shortcuts modal
   if (btnShortcuts) btnShortcuts.addEventListener('click', openShortcutsModal);
@@ -1953,22 +2488,26 @@ function setupEventListeners() {
     if (e.target === shortcutsModal) closeShortcutsModal();
   });
 
-  // Instant Template Dropdown Selection (Loads immediately on change!)
-  templateSelect.addEventListener('change', () => {
-    const val = templateSelect.value;
-    if (val) {
-      loadTemplateToCanvas(val);
-      templateSelect.value = ''; // reset select so it can be re-triggered anytime
-    }
-  });
+  // Instant Template Dropdown Selection (if present in DOM)
+  if (templateSelect) {
+    templateSelect.addEventListener('change', () => {
+      const val = templateSelect.value;
+      if (val) {
+        loadTemplateToCanvas(val);
+        templateSelect.value = '';
+      }
+    });
+  }
 
   // Gallery Modal Buttons
-  btnOpenGallery.addEventListener('click', openGalleryModal);
-  btnCloseGallery.addEventListener('click', closeGalleryModal);
+  if (btnOpenGallery) btnOpenGallery.addEventListener('click', openGalleryModal);
+  if (btnCloseGallery) btnCloseGallery.addEventListener('click', closeGalleryModal);
 
-  galleryModal.addEventListener('click', (e) => {
-    if (e.target === galleryModal) closeGalleryModal();
-  });
+  if (galleryModal) {
+    galleryModal.addEventListener('click', (e) => {
+      if (e.target === galleryModal) closeGalleryModal();
+    });
+  }
 
   // Filter Buttons in Modal
   document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -1977,46 +2516,132 @@ function setupEventListeners() {
     });
   });
 
-  // Toggle Palette Collapse
-  btnTogglePalette.addEventListener('click', () => {
-    const isCollapsed = toolPalette.classList.toggle('collapsed');
-    btnTogglePalette.textContent = isCollapsed ? '▶' : '◀';
-    btnTogglePalette.title = isCollapsed ? 'Mostrar menu de ferramentas (Expandir)' : 'Ocultar menu de ferramentas (Recolher)';
-    setTimeout(resizeCanvas, 220);
-  });
+  // Stroke Mini Popover Handling
+  const btnStrokeMenu = document.getElementById('btnStrokeMenu');
+  const strokeMiniPopover = document.getElementById('strokeMiniPopover');
 
-  // Zoom HUD
-  btnZoomIn.addEventListener('click', () => applyZoom(1.2));
-  btnZoomOut.addEventListener('click', () => applyZoom(1 / 1.2));
-  btnZoomReset.addEventListener('click', () => {
-    zoom = 1.0;
-    panX = 0;
-    panY = 0;
-    render();
-  });
-  btnZoomFit.addEventListener('click', fitToScreen);
+  function updateStrokePopoverPosition() {
+    if (!btnStrokeMenu || !strokeMiniPopover) return;
+    const btnRect = btnStrokeMenu.getBoundingClientRect();
+    const workspace = document.querySelector('.workspace') || document.body;
+    const wsRect = workspace.getBoundingClientRect();
+    const topPos = Math.max(8, btnRect.top - wsRect.top - 6);
+    const leftPos = btnRect.right - wsRect.left + 8;
+    strokeMiniPopover.style.top = `${topPos}px`;
+    strokeMiniPopover.style.left = `${leftPos}px`;
+  }
 
-  // Sidebar Controls
-  btnToggleSidebar.addEventListener('click', () => {
-    const isClosed = studySidebar.classList.contains('closed');
-    if (isClosed) {
-      studySidebar.classList.remove('closed');
-      sidebarBackdrop.classList.add('active');
-    } else {
-      studySidebar.classList.add('closed');
-      sidebarBackdrop.classList.remove('active');
+  if (btnStrokeMenu) {
+    btnStrokeMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!strokeMiniPopover) return;
+      const isOpen = strokeMiniPopover.style.display === 'flex';
+      if (isOpen) {
+        strokeMiniPopover.style.display = 'none';
+        btnStrokeMenu.classList.remove('open');
+      } else {
+        updateStrokePopoverPosition();
+        strokeMiniPopover.style.display = 'flex';
+        btnStrokeMenu.classList.add('open');
+      }
+    });
+
+    // Quick size adjustments using mouse wheel over stroke button
+    btnStrokeMenu.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const step = currentSize < 3 ? 0.5 : (currentSize < 10 ? 1 : 2);
+      const delta = e.deltaY < 0 ? step : -step;
+      setStrokeSize(Math.max(0.5, Math.min(36, currentSize + delta)));
+    }, { passive: false });
+  }
+
+  // Prevent clicks inside the popover from bubbling to document and closing it
+  if (strokeMiniPopover) {
+    strokeMiniPopover.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // Close stroke popover on click outside
+  document.addEventListener('click', (e) => {
+    if (strokeMiniPopover && strokeMiniPopover.style.display === 'flex') {
+      if (!strokeMiniPopover.contains(e.target) && !btnStrokeMenu?.contains(e.target)) {
+        strokeMiniPopover.style.display = 'none';
+        if (btnStrokeMenu) btnStrokeMenu.classList.remove('open');
+      }
     }
   });
 
-  btnCloseSidebar.addEventListener('click', () => {
-    studySidebar.classList.add('closed');
-    sidebarBackdrop.classList.remove('active');
-  });
+  // Toggle Palette Expand / Collapse
+  function updatePaletteToggleState(isExpanded) {
+    if (btnTogglePalette) {
+      btnTogglePalette.innerHTML = isExpanded ? 
+        '<svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>' : 
+        '<svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>';
+      btnTogglePalette.title = isExpanded ? 'Recolher menu de ferramentas' : 'Mais ferramentas e opções (Expandir)';
+    }
+  }
 
-  sidebarBackdrop.addEventListener('click', () => {
-    studySidebar.classList.add('closed');
-    sidebarBackdrop.classList.remove('active');
-  });
+  function togglePalette() {
+    if (!toolPalette) return;
+    const isExpanded = toolPalette.classList.toggle('expanded');
+    if (strokeMiniPopover) {
+      strokeMiniPopover.style.display = 'none';
+      if (btnStrokeMenu) btnStrokeMenu.classList.remove('open');
+    }
+    updatePaletteToggleState(isExpanded);
+    setTimeout(resizeCanvas, 230);
+  }
+
+  if (btnTogglePalette) {
+    btnTogglePalette.addEventListener('click', togglePalette);
+  }
+
+  const btnCollapsePalette = document.getElementById('btnCollapsePalette');
+  if (btnCollapsePalette) {
+    btnCollapsePalette.addEventListener('click', togglePalette);
+  }
+
+  // Zoom HUD
+  if (btnZoomIn) btnZoomIn.addEventListener('click', () => applyZoom(1.2));
+  if (btnZoomOut) btnZoomOut.addEventListener('click', () => applyZoom(1 / 1.2));
+  if (btnZoomReset) {
+    btnZoomReset.addEventListener('click', () => {
+      zoom = 1.0;
+      panX = 0;
+      panY = 0;
+      render();
+    });
+  }
+  if (btnZoomFit) btnZoomFit.addEventListener('click', fitToScreen);
+
+  // Sidebar Controls
+  if (btnToggleSidebar) {
+    btnToggleSidebar.addEventListener('click', () => {
+      const isClosed = studySidebar.classList.contains('closed');
+      if (isClosed) {
+        studySidebar.classList.remove('closed');
+        if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
+      } else {
+        studySidebar.classList.add('closed');
+        if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+      }
+    });
+  }
+
+  if (btnCloseSidebar) {
+    btnCloseSidebar.addEventListener('click', () => {
+      if (studySidebar) studySidebar.classList.add('closed');
+      if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+    });
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', () => {
+      if (studySidebar) studySidebar.classList.add('closed');
+      sidebarBackdrop.classList.remove('active');
+    });
+  }
 
   // Sidebar Tabs
   document.querySelectorAll('.tab-btn').forEach(tab => {
@@ -2130,8 +2755,38 @@ function simplifyPolyline(points, tolerance = 0.6) {
 }
 
 
+// Active pointers tracking for touch pinch-to-zoom & two-finger pan
+const activePointers = new Map();
+let initialPinchDist = null;
+let initialPinchZoom = 1.0;
+let initialPinchCenter = null;
+let initialPinchPan = null;
+
 // Pointer event handlers
 function handlePointerDown(e) {
+  if (e.pointerId !== undefined) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  // Multi-touch pinch/pan detection (2 fingers on screen)
+  if (activePointers.size >= 2) {
+    if (isDrawing) {
+      isDrawing = false;
+      currentPath = null;
+      render();
+    }
+    isPanning = false;
+    isAreaSelecting = false;
+    isDraggingSelection = false;
+
+    const pts = Array.from(activePointers.values());
+    initialPinchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    initialPinchZoom = zoom;
+    initialPinchCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    initialPinchPan = { x: panX, y: panY };
+    return;
+  }
+
   // Captura o ponteiro e previne comportamentos de arrasto/gestos nativos do Windows Ink / touch
   if (e.pointerId !== undefined && canvas.setPointerCapture) {
     try {
@@ -2237,6 +2892,29 @@ function handlePointerDown(e) {
     return;
   }
 
+  if (currentTool === 'sticky') {
+    recordState();
+    const newSticky = {
+      id: (typeof generateId === 'function' ? generateId() : 'sticky-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)),
+      type: 'sticky',
+      x: Math.round(pt.x),
+      y: Math.round(pt.y),
+      width: 220,
+      height: 180,
+      color: currentStickyColor.bg,
+      textColor: currentStickyColor.text,
+      text: ''
+    };
+    elements.push(newSticky);
+    selectedElement = newSticky;
+    selectedElements = [newSticky];
+    render();
+    scheduleAutoSave();
+    broadcastElementAdd(newSticky);
+    promptEditSticky(newSticky, mouseX, mouseY);
+    return;
+  }
+
   if (currentTool === 'eraser') {
     eraseStartState = serializeBoardState();
     eraseModified = false;
@@ -2279,6 +2957,35 @@ function handlePointerDown(e) {
 }
 
 function handlePointerMove(e) {
+  if (activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  // Multi-touch pinch-to-zoom and two-finger pan gesture
+  if (activePointers.size >= 2 && initialPinchDist && initialPinchCenter && initialPinchPan) {
+    if (e.cancelable) e.preventDefault();
+    const pts = Array.from(activePointers.values());
+    const currentDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const currentCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+
+    if (initialPinchDist > 5 && currentDist > 5) {
+      const scale = currentDist / initialPinchDist;
+      const newZoom = Math.min(Math.max(0.15, initialPinchZoom * scale), 5.0);
+
+      const rect = canvas.getBoundingClientRect();
+      const originX = initialPinchCenter.x - rect.left;
+      const originY = initialPinchCenter.y - rect.top;
+
+      panX = originX - (originX - initialPinchPan.x) * (newZoom / initialPinchZoom) + (currentCenter.x - initialPinchCenter.x);
+      panY = originY - (originY - initialPinchPan.y) * (newZoom / initialPinchZoom) + (currentCenter.y - initialPinchCenter.y);
+      zoom = newZoom;
+
+      render();
+      updateEraserCursorSize();
+    }
+    return;
+  }
+
   if (isDrawing || isPanning || isDraggingElement || isResizingElement || isAreaSelecting) {
     if (e.cancelable) e.preventDefault();
   }
@@ -2417,10 +3124,19 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
-  if (e && e.pointerId !== undefined && canvas.releasePointerCapture) {
-    try {
-      canvas.releasePointerCapture(e.pointerId);
-    } catch (err) {}
+  if (e && e.pointerId !== undefined) {
+    activePointers.delete(e.pointerId);
+    if (canvas.releasePointerCapture) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+    }
+  }
+
+  if (activePointers.size < 2) {
+    initialPinchDist = null;
+    initialPinchCenter = null;
+    initialPinchPan = null;
   }
 
   const rect = canvas.getBoundingClientRect();
@@ -2459,7 +3175,7 @@ function handlePointerUp(e) {
         }
         selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
         if (selectedElements.length > 1) {
-          showToast(`📦 ${selectedElements.length} itens selecionados`);
+          showToast(`${selectedElements.length} itens selecionados`);
         }
       }
     }
@@ -2571,23 +3287,43 @@ function handlePointerUp(e) {
   }
 }
 
-// Wheel Zoom
+// Wheel Zoom (Optimized for Touchpad & Mouse Wheel)
 function handleWheel(e) {
   e.preventDefault();
+  if (e.stopPropagation) e.stopPropagation();
+
   const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
+  const mouseX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const mouseY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
-  const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-  const newZoom = Math.min(Math.max(0.15, zoom * zoomFactor), 5.0);
+  // Normalize delta according to deltaMode (0: pixels, 1: lines, 2: pages)
+  let delta = e.deltaY;
+  if (e.deltaMode === 1) {
+    delta *= 24;
+  } else if (e.deltaMode === 2) {
+    delta *= 200;
+  }
 
-  // Zoom toward cursor position
-  panX = mouseX - (mouseX - panX) * (newZoom / zoom);
-  panY = mouseY - (mouseY - panY) * (newZoom / zoom);
-  zoom = newZoom;
+  // Clamp per-event delta to avoid jumps on fast touchpad flick
+  const clampedDelta = Math.max(-100, Math.min(100, delta));
 
-  render();
-  updateEraserCursorSize();
+  // Touchpad pinch gesture (ctrlKey) and trackpad two-finger scroll use smooth, gentle coefficient
+  const sensitivity = e.ctrlKey ? 0.0022 : 0.0012;
+  const zoomFactor = Math.exp(-clampedDelta * sensitivity);
+
+  // Safety clamp on factor per frame
+  const clampedFactor = Math.min(1.15, Math.max(0.87, zoomFactor));
+  const newZoom = Math.min(Math.max(0.15, zoom * clampedFactor), 5.0);
+
+  if (Math.abs(newZoom - zoom) > 0.0001) {
+    // Zoom toward cursor position
+    panX = mouseX - (mouseX - panX) * (newZoom / zoom);
+    panY = mouseY - (mouseY - panY) * (newZoom / zoom);
+    zoom = newZoom;
+
+    render();
+    updateEraserCursorSize();
+  }
 }
 
 function applyZoom(factor) {
@@ -2862,7 +3598,7 @@ function eraseCircleStep(cx, cy, radius) {
       for (let k = 0; k < clipped.length; k++) {
         newElements.push(clipped[k]);
       }
-    } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text') {
+    } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes' || el.type === 'sticky') {
       const bbox = getElementBoundingBox(el);
       if (bbox && cx >= bbox.x && cx <= bbox.x + bbox.width && cy >= bbox.y && cy <= bbox.y + bbox.height) {
         changed = true;
@@ -2974,6 +3710,125 @@ function promptAddText(screenX, screenY, canvasX, canvasY) {
   });
 
   input.addEventListener('blur', commitText);
+}
+
+// ==================== Sticky Note Editor Overlay ====================
+function promptEditSticky(stickyEl, screenX, screenY) {
+  const existingInput = document.getElementById('stickyTextInput');
+  if (existingInput) existingInput.remove();
+
+  const rect = wrapper.getBoundingClientRect();
+  const screenPos = canvasToScreen(stickyEl.x, stickyEl.y);
+
+  const container = document.createElement('div');
+  container.id = 'stickyTextInput';
+  container.className = 'sticky-editor-container';
+  container.style.position = 'absolute';
+  container.style.left = `${Math.max(10, screenPos.x + rect.left)}px`;
+  container.style.top = `${Math.max(10, screenPos.y + rect.top)}px`;
+  container.style.width = `${Math.max(200, (stickyEl.width || 220) * zoom)}px`;
+  container.style.zIndex = '50';
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.boxShadow = '0 12px 32px rgba(0,0,0,0.35)';
+  container.style.borderRadius = '8px';
+  container.style.overflow = 'hidden';
+  container.style.border = '2px solid #3b82f6';
+  container.style.backgroundColor = stickyEl.color || '#fef08a';
+
+  // Barra de cores e topo do Post-it
+  const colorBar = document.createElement('div');
+  colorBar.style.display = 'flex';
+  colorBar.style.gap = '6px';
+  colorBar.style.padding = '6px 10px';
+  colorBar.style.backgroundColor = 'rgba(0,0,0,0.08)';
+  colorBar.style.borderBottom = '1px solid rgba(0,0,0,0.1)';
+  colorBar.style.alignItems = 'center';
+
+  const label = document.createElement('span');
+  label.textContent = 'Post-it';
+  label.style.fontSize = '11px';
+  label.style.fontWeight = '700';
+  label.style.color = stickyEl.textColor || '#713f12';
+  label.style.marginRight = 'auto';
+  colorBar.appendChild(label);
+
+  STICKY_PALETTE.forEach(p => {
+    const dot = document.createElement('div');
+    dot.style.width = '16px';
+    dot.style.height = '16px';
+    dot.style.borderRadius = '50%';
+    dot.style.backgroundColor = p.bg;
+    dot.style.border = p.bg === stickyEl.color ? '2px solid #000' : '1px solid rgba(0,0,0,0.2)';
+    dot.style.cursor = 'pointer';
+    dot.title = p.name;
+    dot.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      stickyEl.color = p.bg;
+      stickyEl.textColor = p.text;
+      container.style.backgroundColor = p.bg;
+      textarea.style.backgroundColor = p.bg;
+      textarea.style.color = p.text;
+      label.style.color = p.text;
+      currentStickyColor = p;
+      render();
+    });
+    colorBar.appendChild(dot);
+  });
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'sticky-editor-textarea';
+  textarea.style.position = 'static';
+  textarea.style.border = 'none';
+  textarea.style.boxShadow = 'none';
+  textarea.style.width = '100%';
+  textarea.style.height = `${Math.max(120, (stickyEl.height || 180) * zoom - 32)}px`;
+  textarea.style.backgroundColor = stickyEl.color || '#fef08a';
+  textarea.style.color = stickyEl.textColor || '#713f12';
+  textarea.style.fontSize = `${Math.max(12, 13 * zoom)}px`;
+  textarea.style.padding = '8px 10px';
+  textarea.value = stickyEl.text || '';
+  textarea.placeholder = 'Digite suas anotações, fórmulas ou lembretes...\n(Ctrl+Enter ou clique fora para salvar)';
+
+  container.appendChild(colorBar);
+  container.appendChild(textarea);
+  document.body.appendChild(container);
+
+  textarea.focus();
+  textarea.select();
+
+  let committed = false;
+  function commitSticky() {
+    if (committed) return;
+    committed = true;
+    const newText = textarea.value;
+    if (stickyEl.text !== newText) {
+      recordState();
+      stickyEl.text = newText;
+      render();
+      scheduleAutoSave();
+      broadcastBoardSync();
+    }
+    if (container.parentNode) container.remove();
+  }
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      committed = true;
+      if (container.parentNode) container.remove();
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      commitSticky();
+    }
+  });
+
+  textarea.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (!container.contains(document.activeElement)) {
+        commitSticky();
+      }
+    }, 150);
+  });
 }
 
 // Paste Image from Clipboard (Ctrl+V)
@@ -3157,7 +4012,7 @@ async function saveToAI(manual = false, focusMode = false) {
     if (res.ok) {
       showSyncBadge('● Sincronizado com IA', 'synced');
       if (manual) {
-        showToast(focusMode ? '🎯 Foco atual salvo para a IA!' : '✅ Quadro salvo e visível para a IA! Pode me chamar no chat.');
+        showToast(focusMode ? 'Foco atual salvo para a IA!' : 'Quadro salvo e visível para a IA! Pode me chamar no chat.');
       }
     } else {
       showSyncBadge('Erro ao salvar', 'idle');
@@ -3168,8 +4023,8 @@ async function saveToAI(manual = false, focusMode = false) {
 }
 
 function showSyncBadge(text, className) {
-  syncText.textContent = text;
-  syncBadge.className = `sync-badge ${className}`;
+  if (syncText) syncText.textContent = text;
+  if (syncBadge) syncBadge.className = `sync-badge ${className}`;
 }
 
 function showToast(msg) {
@@ -3238,11 +4093,19 @@ async function loadSavedBoard() {
 }
 
 function exportLocalPNG() {
+  const exp = document.createElement('canvas');
+  exp.width = canvas.width;
+  exp.height = canvas.height;
+  const expCtx = exp.getContext('2d');
+  expCtx.fillStyle = gridMode === 'ruled' ? '#fdfbf7' : '#ffffff';
+  expCtx.fillRect(0, 0, exp.width, exp.height);
+  expCtx.drawImage(canvas, 0, 0);
+
   const link = document.createElement('a');
-  link.download = `whiteboard_mips_tela_${Date.now()}.png`;
-  link.href = canvas.toDataURL('image/png');
+  link.download = `whiteboard_tela_${Date.now()}.png`;
+  link.href = exp.toDataURL('image/png');
   link.click();
-  showToast('📥 Imagem da tela baixada com sucesso!');
+  showToast('Imagem da tela baixada com sucesso!');
 }
 
 function exportFullPNG() {
@@ -3264,10 +4127,10 @@ function exportFullPNG() {
   elements.forEach(el => drawElement(expCtx, el));
 
   const link = document.createElement('a');
-  link.download = `quadro_mips_completo_${Date.now()}.png`;
+  link.download = `quadro_completo_${Date.now()}.png`;
   link.href = expCanvas.toDataURL('image/png');
   link.click();
-  showToast('📥 Imagem completa baixada com sucesso!');
+  showToast('Imagem completa baixada com sucesso!');
 }
 
 function exportBoardJSON() {
@@ -3288,11 +4151,11 @@ function exportBoardJSON() {
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.download = `quadro_mips_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `quadro_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.href = url;
   a.click();
   URL.revokeObjectURL(url);
-  showToast('💾 Backup do quadro baixado com sucesso!');
+  showToast('Backup do quadro baixado com sucesso!');
 }
 
 function importBoardJSON(file) {
@@ -3312,7 +4175,7 @@ function importBoardJSON(file) {
         render();
         scheduleAutoSave();
         broadcastBoardSync();
-        showToast(`📂 Backup restaurado com sucesso! (${elements.length} elementos)`);
+        showToast(`Backup restaurado com sucesso! (${elements.length} elementos)`);
       } else {
         alert('Arquivo JSON inválido.');
       }
@@ -3323,20 +4186,762 @@ function importBoardJSON(file) {
   reader.readAsText(file);
 }
 
-function toggleGrid() {
-  if (gridMode === 'dots') gridMode = 'lines';
-  else if (gridMode === 'lines') gridMode = 'none';
-  else gridMode = 'dots';
+// ==================== Universal Grid Pattern System ====================
+function applyGridPattern(mode, saveToBoard = true) {
+  const validModes = ['dots', 'graph', 'ruled', 'blank'];
+  if (!validModes.includes(mode)) mode = 'dots';
 
+  gridMode = mode;
   localStorage.setItem('whiteboard_grid', gridMode);
-  if (btnGridToggle) {
-    const labels = { 'dots': 'Grade: Pontos', 'lines': 'Grade: Linhas', 'none': 'Grade: Nenhuma' };
-    const txt = btnGridToggle.querySelector('.btn-text');
-    if (txt) txt.textContent = labels[gridMode];
+
+  wrapper.classList.remove('grid-dots', 'grid-graph', 'grid-ruled', 'grid-blank');
+  wrapper.classList.add(`grid-${gridMode}`);
+
+  const gridBtnText = document.getElementById('gridBtnText');
+  if (gridBtnText) {
+    const labels = {
+      'dots': 'Grade: Pontos',
+      'graph': 'Grade: Milimetrado',
+      'ruled': 'Grade: Pautado',
+      'blank': 'Grade: Liso'
+    };
+    gridBtnText.textContent = labels[gridMode] || 'Grade: Pontos';
   }
+
+  document.querySelectorAll('.grid-option').forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.grid === gridMode);
+  });
+
   render();
-  const desc = gridMode === 'dots' ? 'Pontilhado' : gridMode === 'lines' ? 'Linhas' : 'Sem grade';
-  showToast(`⊞ Grade: ${desc}`);
+
+  if (saveToBoard && activeBoardId) {
+    const currentTitle = getActiveBoardTitle();
+    fetch('/api/boards/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        boardId: activeBoardId,
+        title: currentTitle,
+        gridType: gridMode
+      })
+    }).catch(() => {});
+  }
+}
+
+function toggleGrid() {
+  const modes = ['dots', 'graph', 'ruled', 'blank'];
+  let curIndex = modes.indexOf(gridMode);
+  if (curIndex === -1) curIndex = 0;
+  const nextMode = modes[(curIndex + 1) % modes.length];
+  applyGridPattern(nextMode, true);
+  const labels = {
+    'dots': 'Pontilhado (Moderno)',
+    'graph': 'Papel Milimetrado (Cálculo & Física)',
+    'ruled': 'Caderno Pautado (Anotações)',
+    'blank': 'Branco Liso (Limpo)'
+  };
+  showToast(`⊞ Folha: ${labels[nextMode]}`);
+}
+
+function getActiveBoardTitle() {
+  if (!boardsMetadata || !boardsMetadata.subjects) return 'Quadro de Estudos';
+  for (const s of boardsMetadata.subjects) {
+    for (const b of (s.boards || [])) {
+      if (b.id === activeBoardId) return b.title;
+    }
+  }
+  return 'Quadro de Estudos';
+}
+
+// ==================== Multi-Boards & Subjects Hub ====================
+async function loadBoardsMetadata() {
+  try {
+    const res = await fetch('/api/boards');
+    if (!res.ok) return;
+    boardsMetadata = await res.json();
+    if (boardsMetadata.activeBoardId) {
+      activeBoardId = boardsMetadata.activeBoardId;
+    }
+    updateHubUI();
+  } catch (err) {
+    console.warn('Erro ao carregar boards metadata:', err);
+  }
+}
+
+function updateHubUI() {
+  if (!boardsMetadata || !boardsMetadata.subjects) return;
+
+  const subjectSelect = document.getElementById('subjectSelect');
+  const boardSelect = document.getElementById('boardSelect');
+  const currentSubjectDisplay = document.getElementById('currentSubjectDisplay');
+
+  if (!subjectSelect || !boardSelect) return;
+
+  // 1. Identificar matéria ativa
+  let currentSubj = null;
+  for (const s of boardsMetadata.subjects) {
+    if ((s.boards || []).some(b => b.id === activeBoardId)) {
+      currentSubj = s;
+      break;
+    }
+  }
+  if (!currentSubj && boardsMetadata.subjects.length > 0) {
+    currentSubj = boardsMetadata.subjects[0];
+  }
+
+  if (currentSubjectDisplay && currentSubj) {
+    currentSubjectDisplay.textContent = currentSubj.name;
+  }
+
+  // 2. Preencher subjectSelect
+  subjectSelect.innerHTML = '';
+  for (const s of boardsMetadata.subjects) {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name;
+    if (currentSubj && s.id === currentSubj.id) opt.selected = true;
+    subjectSelect.appendChild(opt);
+  }
+
+  // 3. Preencher boardSelect com os cadernos da matéria ativa
+  boardSelect.innerHTML = '';
+  if (currentSubj && currentSubj.boards) {
+    for (const b of currentSubj.boards) {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.textContent = b.title;
+      if (b.id === activeBoardId) {
+        opt.selected = true;
+        if (b.gridType) applyGridPattern(b.gridType, false);
+      }
+      boardSelect.appendChild(opt);
+    }
+  }
+}
+
+async function switchActiveBoard(newBoardId) {
+  if (!newBoardId || newBoardId === activeBoardId) return;
+  showToast('Carregando caderno...');
+  try {
+    const res = await fetch('/api/boards/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boardId: newBoardId })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      activeBoardId = data.boardId;
+      elements = data.elements || [];
+      undoStack = [];
+      redoStack = [];
+      selectedElements = [];
+      selectedElement = null;
+      rehydrateImages();
+
+      if (data.gridType) {
+        applyGridPattern(data.gridType, false);
+      }
+      await loadBoardsMetadata();
+      render();
+      fitToScreen();
+      showToast('Caderno aberto!');
+    }
+  } catch (err) {
+    console.error('Erro ao alternar caderno:', err);
+    showToast('Erro ao alternar caderno');
+  }
+}
+
+async function createNewBoard(title, gridType) {
+  if (!boardsMetadata || !boardsMetadata.subjects) return;
+  const subjectSelect = document.getElementById('subjectSelect');
+  const subjectId = subjectSelect ? subjectSelect.value : (boardsMetadata.subjects[0] ? boardsMetadata.subjects[0].id : 'arq');
+
+  try {
+    const res = await fetch('/api/boards/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subjectId,
+        title: title || 'Novo Caderno',
+        gridType: gridType || 'dots'
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok' && data.board) {
+      boardsMetadata = data.metadata;
+      await switchActiveBoard(data.board.id);
+      showToast('Novo caderno criado com sucesso!');
+    }
+  } catch (err) {
+    console.error('Erro ao criar caderno:', err);
+    showToast('Erro ao criar caderno');
+  }
+}
+
+async function renameBoard(boardId, newTitle) {
+  try {
+    const res = await fetch('/api/boards/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boardId, title: newTitle })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      boardsMetadata = data.metadata;
+      updateHubUI();
+      renderManageBoardsList();
+      showToast('Caderno renomeado!');
+    }
+  } catch (err) {
+    console.error('Erro ao renomear caderno:', err);
+  }
+}
+
+async function deleteBoard(boardId) {
+  if (!confirm('Tem certeza que deseja excluir este caderno? Esta ação não pode ser desfeita.')) return;
+  try {
+    const res = await fetch('/api/boards/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boardId })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      boardsMetadata = data.metadata;
+      if (data.activeBoardId && data.activeBoardId !== activeBoardId) {
+        await switchActiveBoard(data.activeBoardId);
+      } else {
+        updateHubUI();
+      }
+      renderManageBoardsList();
+      showToast('Caderno excluído.');
+    } else {
+      alert(data.detail || 'Não foi possível excluir o caderno.');
+    }
+  } catch (err) {
+    console.error('Erro ao excluir caderno:', err);
+  }
+}
+
+async function createNewSubject(name, icon) {
+  try {
+    const res = await fetch('/api/subjects/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, icon })
+    });
+    const data = await res.json();
+    if (data.status === 'ok' && data.subject) {
+      boardsMetadata = data.metadata;
+      const firstBoard = (data.subject.boards || [])[0];
+      if (firstBoard) {
+        await switchActiveBoard(firstBoard.id);
+      } else {
+        updateHubUI();
+      }
+      showToast(`Matéria "${name}" criada com sucesso!`);
+    }
+  } catch (err) {
+    console.error('Erro ao criar matéria:', err);
+  }
+}
+
+// ==================== Cloudflare Tunnel Integration ====================
+let tunnelActive = false;
+let currentTunnelUrl = null;
+
+async function checkTunnelStatus() {
+  try {
+    const res = await fetch('/api/tunnel/status');
+    if (res.ok) {
+      const data = await res.json();
+      tunnelActive = !!data.active;
+      currentTunnelUrl = data.url;
+      updateTunnelUI();
+    }
+  } catch (err) {
+    // ignore
+  }
+}
+
+function updateTunnelUI() {
+  const btnShare = document.getElementById('btnShareCloudflare');
+  if (!btnShare) return;
+
+  if (tunnelActive && currentTunnelUrl) {
+    btnShare.classList.add('active');
+    const txt = btnShare.querySelector('.btn-text');
+    if (txt) txt.textContent = 'Compartilhado';
+    btnShare.title = `Quadro online: ${currentTunnelUrl}`;
+  } else {
+    btnShare.classList.remove('active');
+    const txt = btnShare.querySelector('.btn-text');
+    if (txt) txt.textContent = 'Compartilhar';
+    btnShare.title = 'Abrir quadro para amigos pela Internet (Cloudflare)';
+  }
+}
+
+async function openCloudflareModal() {
+  const modal = document.getElementById('cloudflareModal');
+  const loading = document.getElementById('cfLoadingState');
+  const active = document.getElementById('cfActiveState');
+  const urlInput = document.getElementById('cfPublicUrlInput');
+
+  if (!modal) return;
+  modal.classList.add('open');
+
+  if (tunnelActive && currentTunnelUrl) {
+    if (loading) loading.style.display = 'none';
+    if (active) active.style.display = 'flex';
+    if (urlInput) urlInput.value = currentTunnelUrl;
+    return;
+  }
+
+  // Not active yet: trigger tunnel creation
+  if (loading) loading.style.display = 'block';
+  if (active) active.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/tunnel/start', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'ok' && data.url) {
+      tunnelActive = true;
+      currentTunnelUrl = data.url;
+
+      if (urlInput) urlInput.value = data.url;
+
+      if (loading) loading.style.display = 'none';
+      if (active) active.style.display = 'flex';
+      updateTunnelUI();
+
+      navigator.clipboard.writeText(data.url).catch(() => {});
+      showToast('Link do Cloudflare copiado!');
+      if (data.warning) {
+        showToast(data.warning);
+      }
+    } else {
+      if (loading) loading.style.display = 'none';
+      alert(data.detail || 'Não foi possível iniciar o túnel Cloudflare. Verifique se o Cloudflare WARP está ativo.');
+      closeCloudflareModal();
+    }
+  } catch (err) {
+    if (loading) loading.style.display = 'none';
+    console.error('Erro ao iniciar Cloudflare Tunnel:', err);
+    alert('Erro ao conectar com o serviço Cloudflare. Verifique se o WARP está conectado.');
+    closeCloudflareModal();
+  }
+}
+
+function closeCloudflareModal() {
+  const modal = document.getElementById('cloudflareModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function stopCloudflareTunnel() {
+  try {
+    await fetch('/api/tunnel/stop', { method: 'POST' });
+    tunnelActive = false;
+    currentTunnelUrl = null;
+    updateTunnelUI();
+    closeCloudflareModal();
+    showToast('Compartilhamento encerrado.');
+  } catch (err) {
+    console.error('Erro ao parar túnel:', err);
+  }
+}
+
+// ==================== Modal Nova Matéria ====================
+function openNewSubjectModal() {
+  const modal = document.getElementById('newSubjectModal');
+  const nameInput = document.getElementById('newSubjectNameInput');
+  const iconInput = document.getElementById('newSubjectIconInput');
+  if (nameInput) {
+    nameInput.value = '';
+    setTimeout(() => nameInput.focus(), 80);
+  }
+  if (iconInput) iconInput.value = 'book';
+  if (modal) modal.classList.add('open');
+}
+
+function closeNewSubjectModal() {
+  const modal = document.getElementById('newSubjectModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function deleteSubject(subjectId) {
+  if (!boardsMetadata || !boardsMetadata.subjects) return;
+  if (boardsMetadata.subjects.length <= 1) {
+    alert('Não é permitido excluir a única matéria restante.');
+    return;
+  }
+  const subj = boardsMetadata.subjects.find(s => s.id === subjectId);
+  const subjName = subj ? subj.name : 'esta matéria';
+  if (!confirm(`Tem certeza que deseja excluir a matéria "${subjName}" e todos os seus cadernos?`)) return;
+
+  try {
+    const res = await fetch('/api/subjects/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjectId })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      boardsMetadata = data.metadata;
+      if (data.activeBoardId) {
+        await switchActiveBoard(data.activeBoardId);
+      } else {
+        updateHubUI();
+      }
+      renderManageBoardsList();
+      showToast('Matéria excluída.');
+    } else {
+      alert(data.detail || 'Não foi possível excluir a matéria.');
+    }
+  } catch (err) {
+    console.error('Erro ao excluir matéria:', err);
+  }
+}
+
+async function renameSubject(subjectId, currentName, currentIcon) {
+  const cleanName = currentName.replace(/^[^\s]+\s/, '');
+  const newName = prompt('Novo nome da matéria:', cleanName);
+  if (!newName || !newName.trim()) return;
+
+  try {
+    const res = await fetch('/api/subjects/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subjectId,
+        name: newName.trim(),
+        icon: currentIcon || 'book'
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      boardsMetadata = data.metadata;
+      updateHubUI();
+      renderManageBoardsList();
+      showToast('Matéria renomeada!');
+    }
+  } catch (err) {
+    console.error('Erro ao renomear matéria:', err);
+  }
+}
+
+function renderManageBoardsList() {
+  const list = document.getElementById('manageBoardsList');
+  if (!list || !boardsMetadata || !boardsMetadata.subjects) return;
+
+  list.innerHTML = '';
+
+  const subjectSelect = document.getElementById('subjectSelect');
+  const currentSubjId = subjectSelect ? subjectSelect.value : null;
+  const currentSubj = boardsMetadata.subjects.find(s => s.id === currentSubjId) || boardsMetadata.subjects[0];
+
+  if (!currentSubj) return;
+
+  // Header informativo da matéria atual
+  const subjHeader = document.createElement('div');
+  subjHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:10px 14px; margin-bottom:12px;';
+  subjHeader.innerHTML = `
+    <div>
+      <div style="font-size:13.5px; font-weight:700; color:#f1f5f9;">Matéria: ${currentSubj.name}</div>
+      <div style="font-size:11px; color:var(--text-muted);">${(currentSubj.boards || []).length} caderno(s) cadastrado(s)</div>
+    </div>
+  `;
+  list.appendChild(subjHeader);
+
+  // Lista de cadernos
+  (currentSubj.boards || []).forEach(b => {
+    const item = document.createElement('div');
+    item.className = 'manage-board-item' + (b.id === activeBoardId ? ' active' : '');
+
+    const info = document.createElement('div');
+    info.className = 'board-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'board-item-title';
+    title.textContent = b.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'board-item-meta';
+    meta.textContent = `Grade: ${b.gridType || 'dots'} · ID: ${b.id}`;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'board-item-actions';
+
+    if (b.id !== activeBoardId) {
+      const btnOpen = document.createElement('button');
+      btnOpen.className = 'btn btn-secondary btn-small-action';
+      btnOpen.textContent = 'Abrir';
+      btnOpen.addEventListener('click', () => {
+        switchActiveBoard(b.id);
+        closeBoardManageModal();
+      });
+      actions.appendChild(btnOpen);
+    }
+
+    const btnRename = document.createElement('button');
+    btnRename.className = 'btn btn-secondary btn-small-action';
+    btnRename.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span>Renomear</span>';
+    btnRename.addEventListener('click', () => {
+      const newTitle = prompt('Novo título do caderno:', b.title);
+      if (newTitle && newTitle.trim()) {
+        renameBoard(b.id, newTitle.trim());
+      }
+    });
+    actions.appendChild(btnRename);
+
+    if ((currentSubj.boards || []).length > 1) {
+      const btnDel = document.createElement('button');
+      btnDel.className = 'btn btn-secondary btn-small-action';
+      btnDel.style.color = 'var(--danger)';
+      btnDel.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+      btnDel.title = 'Excluir Caderno';
+      btnDel.addEventListener('click', () => {
+        deleteBoard(b.id);
+      });
+      actions.appendChild(btnDel);
+    }
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    list.appendChild(item);
+  });
+}
+
+function openBoardManageModal() {
+  const modal = document.getElementById('boardManageModal');
+  if (modal) {
+    renderManageBoardsList();
+    modal.classList.add('open');
+  }
+}
+
+function closeBoardManageModal() {
+  const modal = document.getElementById('boardManageModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function openNewBoardModal() {
+  const modal = document.getElementById('newBoardModal');
+  const titleInput = document.getElementById('newBoardTitleInput');
+  const subjNameEl = document.getElementById('newBoardSubjectName');
+  const subjectSelect = document.getElementById('subjectSelect');
+
+  if (subjNameEl && subjectSelect && subjectSelect.selectedOptions[0]) {
+    subjNameEl.textContent = `Para a matéria: ${subjectSelect.selectedOptions[0].textContent}`;
+  }
+  if (titleInput) {
+    titleInput.value = '';
+    setTimeout(() => titleInput.focus(), 80);
+  }
+  if (modal) modal.classList.add('open');
+}
+
+function closeNewBoardModal() {
+  const modal = document.getElementById('newBoardModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function setupHubUI() {
+  const subjectSelect = document.getElementById('subjectSelect');
+  const boardSelect = document.getElementById('boardSelect');
+  const btnNewBoard = document.getElementById('btnNewBoard');
+  const btnNewSubject = document.getElementById('btnNewSubject');
+  const btnManageBoards = document.getElementById('btnManageBoards');
+  const btnCloseManageBoards = document.getElementById('btnCloseManageBoards');
+  const btnCreateSubject = document.getElementById('btnCreateSubject');
+  const btnCloseNewBoardModal = document.getElementById('btnCloseNewBoardModal');
+  const btnConfirmCreateBoard = document.getElementById('btnConfirmCreateBoard');
+
+  // Troca de matéria
+  if (subjectSelect) {
+    subjectSelect.addEventListener('change', () => {
+      const subjId = subjectSelect.value;
+      if (!boardsMetadata || !boardsMetadata.subjects) return;
+      const subj = boardsMetadata.subjects.find(s => s.id === subjId);
+      if (subj && subj.boards && subj.boards.length > 0) {
+        switchActiveBoard(subj.boards[0].id);
+      }
+    });
+  }
+
+  // Troca de caderno
+  if (boardSelect) {
+    boardSelect.addEventListener('change', () => {
+      const boardId = boardSelect.value;
+      if (boardId) {
+        switchActiveBoard(boardId);
+      }
+    });
+  }
+
+  // Botões de modal Hub
+  if (btnNewSubject) btnNewSubject.addEventListener('click', openNewSubjectModal);
+  if (btnNewBoard) btnNewBoard.addEventListener('click', openNewBoardModal);
+  if (btnManageBoards) btnManageBoards.addEventListener('click', openBoardManageModal);
+  if (btnCloseManageBoards) btnCloseManageBoards.addEventListener('click', closeBoardManageModal);
+  if (btnCloseNewBoardModal) btnCloseNewBoardModal.addEventListener('click', closeNewBoardModal);
+
+  // Modal Nova Matéria
+  const btnCloseNewSubjectModal = document.getElementById('btnCloseNewSubjectModal');
+  if (btnCloseNewSubjectModal) btnCloseNewSubjectModal.addEventListener('click', closeNewSubjectModal);
+
+  const btnConfirmCreateSubject = document.getElementById('btnConfirmCreateSubject');
+  if (btnConfirmCreateSubject) {
+    btnConfirmCreateSubject.addEventListener('click', () => {
+      const nameInput = document.getElementById('newSubjectNameInput');
+      const iconInput = document.getElementById('newSubjectIconInput');
+      const name = nameInput ? nameInput.value.trim() : '';
+      const icon = iconInput ? iconInput.value.trim() || 'book' : 'book';
+      if (name) {
+        createNewSubject(name, icon);
+        closeNewSubjectModal();
+      } else {
+        alert('Por favor, informe o nome da matéria.');
+      }
+    });
+  }
+
+  // Icon presets no modal de matéria
+  document.querySelectorAll('.icon-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.icon-preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const iconInput = document.getElementById('newSubjectIconInput');
+      if (iconInput) iconInput.value = btn.dataset.icon || 'book';
+    });
+  });
+
+  // Criar matéria pelo modal de gerenciar (campo legado)
+  if (btnCreateSubject) {
+    btnCreateSubject.addEventListener('click', () => {
+      const nameInput = document.getElementById('newSubjectName');
+      const iconInput = document.getElementById('newSubjectIcon');
+      const name = nameInput ? nameInput.value.trim() : '';
+      const icon = iconInput ? iconInput.value.trim() || 'book' : 'book';
+      if (name) {
+        createNewSubject(name, icon);
+        if (nameInput) nameInput.value = '';
+        if (iconInput) iconInput.value = '';
+      } else {
+        alert('Por favor, informe o nome da matéria.');
+      }
+    });
+  }
+
+  // Criar caderno
+  if (btnConfirmCreateBoard) {
+    btnConfirmCreateBoard.addEventListener('click', () => {
+      const titleInput = document.getElementById('newBoardTitleInput');
+      const gridSelect = document.getElementById('newBoardGridSelect');
+      const title = titleInput ? titleInput.value.trim() : '';
+      const grid = gridSelect ? gridSelect.value : 'dots';
+      createNewBoard(title || 'Novo Caderno', grid);
+      closeNewBoardModal();
+    });
+  }
+
+  // Cloudflare Share
+  const btnShareCloudflare = document.getElementById('btnShareCloudflare');
+  if (btnShareCloudflare) {
+    btnShareCloudflare.addEventListener('click', openCloudflareModal);
+  }
+
+  const btnCloseCloudflareModal = document.getElementById('btnCloseCloudflareModal');
+  if (btnCloseCloudflareModal) {
+    btnCloseCloudflareModal.addEventListener('click', closeCloudflareModal);
+  }
+
+  const btnCopyCfUrl = document.getElementById('btnCopyCfUrl');
+  if (btnCopyCfUrl) {
+    btnCopyCfUrl.addEventListener('click', () => {
+      const input = document.getElementById('cfPublicUrlInput');
+      if (input && input.value) {
+        navigator.clipboard.writeText(input.value).then(() => {
+          btnCopyCfUrl.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Copiado!</span>';
+          setTimeout(() => {
+            btnCopyCfUrl.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copiar</span>';
+          }, 2500);
+        });
+      }
+    });
+  }
+
+  const btnStopCfTunnel = document.getElementById('btnStopCfTunnel');
+  if (btnStopCfTunnel) {
+    btnStopCfTunnel.addEventListener('click', stopCloudflareTunnel);
+  }
+
+  // Upload Material na Galeria
+  const btnUploadMaterial = document.getElementById('btnUploadMaterial');
+  const materialFileInput = document.getElementById('materialFileInput');
+  if (btnUploadMaterial && materialFileInput) {
+    btnUploadMaterial.addEventListener('click', () => materialFileInput.click());
+    materialFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        uploadMaterialFile(e.target.files[0]);
+        e.target.value = '';
+      }
+    });
+  }
+
+  // Grid dropdown options
+  document.querySelectorAll('.grid-option').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pattern = opt.dataset.grid;
+      if (pattern) {
+        applyGridPattern(pattern, true);
+        const gridDropdown = document.getElementById('gridDropdown');
+        if (gridDropdown) gridDropdown.classList.remove('open');
+      }
+    });
+  });
+
+  // Grid dropdown toggle
+  const btnGridToggle = document.getElementById('btnGridToggle');
+  const gridDropdown = document.getElementById('gridDropdown');
+  if (btnGridToggle && gridDropdown) {
+    btnGridToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const exportDropdown = document.getElementById('exportDropdown');
+      if (exportDropdown) exportDropdown.classList.remove('open');
+      gridDropdown.classList.toggle('open');
+    });
+  }
+
+  // Fechar dropdowns da barra superior ao clicar fora
+  window.addEventListener('click', (e) => {
+    const gd = document.getElementById('gridDropdown');
+    const ed = document.getElementById('exportDropdown');
+    if (gd && !gd.contains(e.target)) gd.classList.remove('open');
+    if (ed && !ed.contains(e.target)) ed.classList.remove('open');
+  });
+
+  // Fechar modais ao clicar no backdrop
+  [
+    document.getElementById('boardManageModal'),
+    document.getElementById('newBoardModal'),
+    document.getElementById('newSubjectModal'),
+    document.getElementById('cloudflareModal')
+  ].forEach(modal => {
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('open');
+      });
+    }
+  });
+
+  // Verificar status inicial do túnel
+  checkTunnelStatus();
 }
 
 function openShortcutsModal() {
@@ -3427,7 +5032,7 @@ function setupHotkeys() {
         render();
         scheduleAutoSave();
         commitLocalAction();
-        showToast(count === 1 ? '🗑️ Elemento excluído (Ctrl+Z para desfazer)' : `🗑️ ${count} elementos excluídos (Ctrl+Z para desfazer)`);
+        showToast(count === 1 ? 'Elemento excluído (Ctrl+Z para desfazer)' : `${count} elementos excluídos (Ctrl+Z para desfazer)`);
         return;
       } else if (selectedElement) {
         recordState();
@@ -3436,7 +5041,7 @@ function setupHotkeys() {
         render();
         scheduleAutoSave();
         commitLocalAction();
-        showToast('🗑️ Elemento excluído (Ctrl+Z para desfazer)');
+        showToast('Elemento excluído (Ctrl+Z para desfazer)');
         return;
       }
     }
@@ -3457,6 +5062,11 @@ function setupHotkeys() {
       'a': 'arrow',
       'l': 'line',
       'r': 'rect',
+      'c': 'circle',
+      'o': 'circle',
+      'd': 'diamond',
+      'x': 'axes',
+      'n': 'sticky',
       'm': 'mux',
       'u': 'alu',
       't': 'text',
@@ -3566,6 +5176,15 @@ function handleWsMessage(msg) {
       const count = msg.userCount || 1;
       updateCollabUI(count, true);
 
+      if (msg.activeBoardId) activeBoardId = msg.activeBoardId;
+      if (msg.boardsMeta) {
+        boardsMetadata = msg.boardsMeta;
+        updateHubUI();
+      }
+      if (msg.gridType) {
+        applyGridPattern(msg.gridType, false);
+      }
+
       // If server already has elements, adopt them!
       if (msg.elements && msg.elements.length > 0) {
         elements = msg.elements;
@@ -3583,7 +5202,7 @@ function handleWsMessage(msg) {
       const count = msg.userCount || 1;
       updateCollabUI(count, true);
       if (msg.user && msg.user.name && msg.user.clientId !== wsClientId) {
-        showToast(`👋 ${msg.user.name} entrou no quadro!`);
+        showToast(`${msg.user.name} entrou no quadro!`);
       }
       if (msg.left) {
         peerCursors.delete(msg.left);
@@ -3649,6 +5268,15 @@ function handleWsMessage(msg) {
     case 'board_sync': {
       if (msg.clientId === wsClientId) return;
       peerLiveStrokes.delete(msg.clientId);
+      if (msg.boardId && msg.boardId !== activeBoardId) {
+        activeBoardId = msg.boardId;
+        if (msg.gridType) applyGridPattern(msg.gridType, false);
+        loadBoardsMetadata();
+        showToast('Caderno sincronizado com a sessão!');
+      } else if (msg.gridType && msg.gridType !== gridMode) {
+        applyGridPattern(msg.gridType, false);
+      }
+
       if (Array.isArray(msg.elements)) {
         receiveBoardChanges(boardChanges(JSON.parse(serializeBoardState()), msg.elements));
         selectedElements = [];
@@ -3666,7 +5294,7 @@ function handleWsMessage(msg) {
       selectedElements = [];
       selectedElement = null;
       render();
-      showToast('🧹 O quadro foi limpo por outro participante.');
+      showToast('O quadro foi limpo por outro participante.');
       break;
     }
   }
@@ -3805,10 +5433,12 @@ function updateCollabUI(count, isConnected) {
 
   if (collabStatusText && collabStatusIndicator) {
     if (isConnected) {
-      collabStatusIndicator.textContent = '🟢';
+      collabStatusIndicator.className = 'status-indicator online';
+      collabStatusIndicator.innerHTML = '<span class="live-pulse-dot"></span>';
       collabStatusText.textContent = `Conectado em tempo real · ${count} participante${count > 1 ? 's' : ''} no quadro`;
     } else {
-      collabStatusIndicator.textContent = '🔴';
+      collabStatusIndicator.className = 'status-indicator offline';
+      collabStatusIndicator.innerHTML = '<span class="live-pulse-dot offline"></span>';
       collabStatusText.textContent = 'Servidor desconectado (tentando reconectar...)';
     }
   }
@@ -3862,39 +5492,6 @@ function setupCollabUI() {
           name: myUserName,
           color: myUserColor
         });
-      });
-    });
-  }
-
-  // Copy Buttons
-  if (btnCopyLocalUrl && collabLocalUrl) {
-    btnCopyLocalUrl.addEventListener('click', () => {
-      navigator.clipboard.writeText(collabLocalUrl.value).then(() => {
-        const origText = btnCopyLocalUrl.innerHTML;
-        btnCopyLocalUrl.innerHTML = '✅ Copiado!';
-        setTimeout(() => { btnCopyLocalUrl.innerHTML = origText; }, 2500);
-      }).catch(() => {
-        collabLocalUrl.select();
-        document.execCommand('copy');
-        btnCopyLocalUrl.innerHTML = '✅ Copiado!';
-      });
-    });
-  }
-
-  if (btnCopyTunnelCmd) {
-    btnCopyTunnelCmd.addEventListener('click', () => {
-      navigator.clipboard.writeText('npx localtunnel --port 8080').then(() => {
-        btnCopyTunnelCmd.textContent = 'Copiado!';
-        setTimeout(() => { btnCopyTunnelCmd.textContent = 'Copiar'; }, 2500);
-      });
-    });
-  }
-
-  if (btnCopyCloudflareCmd) {
-    btnCopyCloudflareCmd.addEventListener('click', () => {
-      navigator.clipboard.writeText('.\\cloudflared.exe tunnel --edge-ip-version 4 --protocol http2 --url http://localhost:8080').then(() => {
-        btnCopyCloudflareCmd.textContent = 'Copiado!';
-        setTimeout(() => { btnCopyCloudflareCmd.textContent = 'Copiar'; }, 2500);
       });
     });
   }

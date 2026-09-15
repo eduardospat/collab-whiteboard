@@ -15,7 +15,7 @@ if command -v python3 >/dev/null 2>&1; then
 elif command -v python >/dev/null 2>&1; then
     PYTHON_CMD="python"
 else
-    echo "❌ Erro: Python 3 não foi encontrado no sistema!"
+    echo "[ERRO] Python 3 não foi encontrado no sistema!"
     echo "Instale no Ubuntu/Debian com:"
     echo "   sudo apt update && sudo apt install -y python3 python3-pip python3-venv"
     exit 1
@@ -25,7 +25,7 @@ fi
 # usar um venv local isolado evita conflito com o gerenciador do sistema.
 if [ ! -d ".venv" ]; then
     if ! $PYTHON_CMD -c "import fastapi, uvicorn, websockets" >/dev/null 2>&1; then
-        echo "📦 Criando ambiente virtual Python (.venv)..."
+        echo "[INFO] Criando ambiente virtual Python (.venv)..."
         $PYTHON_CMD -m venv .venv 2>/dev/null || true
     fi
 fi
@@ -35,5 +35,5 @@ if [ -f ".venv/bin/activate" ]; then
     PYTHON_CMD="python"
 fi
 
-echo "🚀 Iniciando o Whiteboard de Arquitetura de Computadores..."
+echo "[INICIANDO] Whiteboard..."
 exec $PYTHON_CMD "$SCRIPT_DIR/start_whiteboard.py" "$@"

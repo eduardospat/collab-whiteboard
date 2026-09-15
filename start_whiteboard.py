@@ -12,7 +12,7 @@ def ensure_dependencies():
         try:
             __import__(pkg)
         except ImportError:
-            print(f"⏳ Instalando dependência para o quadro colaborativo: {pkg}...")
+            print(f"[INFO] Instalando dependência para o quadro colaborativo: {pkg}...")
             installed = False
             for cmd in [
                 [sys.executable, "-m", "pip", "install", pkg, "--quiet"],
@@ -22,12 +22,12 @@ def ensure_dependencies():
                 try:
                     subprocess.check_call(cmd)
                     installed = True
-                    print(f"✅ {pkg} instalado com sucesso!")
+                    print(f"[OK] {pkg} instalado com sucesso!")
                     break
                 except Exception:
                     continue
             if not installed:
-                print(f"⚠️  Aviso: Não foi possível instalar '{pkg}' automaticamente.")
+                print(f"[AVISO] Não foi possível instalar '{pkg}' automaticamente.")
                 print("   No Linux, instale com: pip install -r requirements.txt")
                 print("   Ou crie um ambiente virtual: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt")
 
