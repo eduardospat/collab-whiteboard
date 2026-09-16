@@ -2941,7 +2941,7 @@ function detectGeometricShape(pts, color, size) {
   const chord = Math.hypot(pN.x - p0.x, pN.y - p0.y);
   const linearity = chord / totalLen;
 
-  // 1. Straight Line
+  // 1. Straight Line (returns smooth path points)
   if (linearity >= 0.88 && chord >= 25) {
     let x2 = pN.x;
     let y2 = pN.y;
@@ -2954,32 +2954,44 @@ function detectGeometricShape(pts, color, size) {
         break;
       }
     }
+    const segLen = Math.hypot(x2 - p0.x, y2 - p0.y);
+    const steps = Math.max(2, Math.ceil(segLen / 4));
+    const linePts = [];
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps;
+      linePts.push({
+        x: Math.round((p0.x + (x2 - p0.x) * t) * 10) / 10,
+        y: Math.round((p0.y + (y2 - p0.y) * t) * 10) / 10
+      });
+    }
     return {
-      type: 'line',
+      type: 'path',
       shapeLabel: 'Reta',
       color,
       size,
-      x1: Math.round(p0.x * 10) / 10,
-      y1: Math.round(p0.y * 10) / 10,
-      x2: Math.round(x2 * 10) / 10,
-      y2: Math.round(y2 * 10) / 10
+      points: linePts
     };
   }
 
   // 2. Closed Shapes: Circle/Ellipse, Triangle or Rectangle
-  if (chord / totalLen < 0.35 || chord < 35) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const p = pts[i];
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
-    const w = maxX - minX;
-    const h = maxY - minY;
-    if (w < 20 || h < 20) return null;
+  // Adapt closure detection to pen thickness and overall size
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const w = maxX - minX;
+  const h = maxY - minY;
+  if (w < 20 || h < 20) return null;
 
+  const diag = Math.hypot(w, h);
+  const maxClosureGap = Math.max(50, (size || 2.5) * 4);
+  const isClosedLoop = (chord / totalLen < 0.50) || (chord < maxClosureGap) || (chord < diag * 0.45);
+
+  if (isClosedLoop) {
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     const rx = w / 2;
@@ -2996,7 +3008,6 @@ function detectGeometricShape(pts, color, size) {
     const fillRatio = bboxArea > 0 ? (polyArea / bboxArea) : 0;
 
     // B. Corner detection via Douglas-Peucker line simplification
-    const diag = Math.hypot(w, h);
     const simplified = simplifyPolyline(pts, diag * 0.05);
     const uniqueCorners = simplified.filter((p, idx) => {
       if (idx === 0) return true;
@@ -3004,34 +3015,21 @@ function detectGeometricShape(pts, color, size) {
     });
 
     // C. Radial distance analysis from center
-    const rads = [];
-    let radSum = 0;
+    let radDevSum = 0;
     for (let i = 0; i < n; i++) {
       const p = pts[i];
       const dx = (p.x - cx) / rx;
       const dy = (p.y - cy) / ry;
-      const r = Math.hypot(dx, dy);
-      rads.push(r);
-      radSum += r;
+      radDevSum += Math.abs(Math.hypot(dx, dy) - 1.0);
     }
-    const minR = Math.min(...rads);
-    const maxR = Math.max(...rads);
-    const radRatio = maxR > 0 ? (minR / maxR) : 1;
-    const meanRad = radSum / n;
-    let varSum = 0;
-    for (let i = 0; i < n; i++) {
-      varSum += Math.pow(rads[i] - meanRad, 2);
-    }
-    const radStdDev = Math.sqrt(varSum / n);
+    const avgRadialDev = radDevSum / n;
 
-    // 1. Triangle Detection Check
-    // Triangles have 3 corners or low fill ratio (theoretical max is 0.50, hand-drawn up to 0.60)
-    if (uniqueCorners.length === 3 || (fillRatio >= 0.18 && fillRatio <= 0.60 && radStdDev > 0.14)) {
+    // 1. Triangle Detection Check (returns path points along 3 edges)
+    if (uniqueCorners.length === 3 || (fillRatio >= 0.18 && fillRatio <= 0.60 && avgRadialDev > 0.14)) {
       let triCorners = [];
       if (uniqueCorners.length === 3) {
         triCorners = [uniqueCorners[0], uniqueCorners[1], uniqueCorners[2]];
       } else if (uniqueCorners.length === 4) {
-        // Drop the point that reduces area the least
         let maxA = -1;
         let bestSet = null;
         for (let skip = 0; skip < 4; skip++) {
@@ -3044,7 +3042,6 @@ function detectGeometricShape(pts, color, size) {
         }
         triCorners = bestSet || uniqueCorners.slice(0, 3);
       } else {
-        // Fallback: 3 extreme corners
         triCorners = [
           { x: cx, y: minY },
           { x: minX, y: maxY },
@@ -3052,7 +3049,7 @@ function detectGeometricShape(pts, color, size) {
         ];
       }
 
-      // Snapping: snap nearly horizontal edges to horizontal, nearly vertical to vertical
+      // Snapping
       for (let i = 0; i < 3; i++) {
         const next = (i + 1) % 3;
         if (Math.abs(triCorners[i].y - triCorners[next].y) < h * 0.12) {
@@ -3067,31 +3064,62 @@ function detectGeometricShape(pts, color, size) {
         }
       }
 
+      const triEdges = [triCorners[0], triCorners[1], triCorners[2], triCorners[0]];
+      const triPts = [];
+      for (let i = 0; i < 3; i++) {
+        const A = triEdges[i], B = triEdges[i + 1];
+        const segLen = Math.hypot(B.x - A.x, B.y - A.y);
+        const steps = Math.max(2, Math.ceil(segLen / 4));
+        for (let j = 0; j < steps; j++) {
+          const t = j / steps;
+          triPts.push({
+            x: Math.round((A.x + (B.x - A.x) * t) * 10) / 10,
+            y: Math.round((A.y + (B.y - A.y) * t) * 10) / 10
+          });
+        }
+      }
+      triPts.push({ x: Math.round(triCorners[0].x * 10) / 10, y: Math.round(triCorners[0].y * 10) / 10 });
+
       return {
-        type: 'triangle',
+        type: 'path',
         shapeLabel: 'Triângulo',
         color,
         size,
-        x1: minX,
-        y1: minY,
-        x2: maxX,
-        y2: maxY,
-        points: triCorners.map(p => ({
-          x: Math.round(p.x * 10) / 10,
-          y: Math.round(p.y * 10) / 10
-        }))
+        points: triPts
       };
     }
 
-    // 2. Square & Rectangle Detection Check
-    // Fundamentally distinct from circles:
-    // - Theoretical max area of circle is pi/4 ≈ 0.785. A square fills 0.83 to 0.98.
-    // - Squares have 4 corners, whereas circles continuously curve (8-14 DP vertices).
-    // - In a square, corners are sqrt(2) ≈ 1.41x further from center than sides (radRatio <= 0.77, radStdDev >= 0.09).
-    const isSquareOrRect = (fillRatio >= 0.83) ||
-                           (uniqueCorners.length === 4) ||
-                           (radRatio <= 0.77 && radStdDev >= 0.09);
+    // 2. Circle / Ellipse Detection Check (returns 72 smooth path points)
+    const isCircle = (avgRadialDev < 0.105 && fillRatio <= 0.82) || (avgRadialDev < 0.12 && fillRatio <= 0.80 && uniqueCorners.length !== 4);
+    if (isCircle) {
+      const aspect = w / h;
+      const isTrueCircle = aspect >= 0.80 && aspect <= 1.25;
+      let finalRx = rx, finalRy = ry;
+      if (isTrueCircle) {
+        const avgR = (rx + ry) / 2;
+        finalRx = avgR;
+        finalRy = avgR;
+      }
+      const circlePts = [];
+      const numSteps = 72; // 5-deg resolution
+      for (let i = 0; i <= numSteps; i++) {
+        const th = (i / numSteps) * Math.PI * 2;
+        circlePts.push({
+          x: Math.round((cx + finalRx * Math.cos(th)) * 10) / 10,
+          y: Math.round((cy + finalRy * Math.sin(th)) * 10) / 10
+        });
+      }
+      return {
+        type: 'path',
+        shapeLabel: isTrueCircle ? 'Círculo' : 'Elipse',
+        color,
+        size,
+        points: circlePts
+      };
+    }
 
+    // 3. Square & Rectangle Check (returns path points along 4 edges)
+    const isSquareOrRect = (fillRatio >= 0.83) || (uniqueCorners.length === 4 && avgRadialDev >= 0.095) || (avgRadialDev >= 0.11 && fillRatio >= 0.81);
     if (isSquareOrRect) {
       const aspect = w / h;
       let rx1 = minX, ry1 = minY, rx2 = maxX, ry2 = maxY;
@@ -3103,39 +3131,60 @@ function detectGeometricShape(pts, color, size) {
         rx2 = cx + side / 2;
         ry2 = cy + side / 2;
       }
+      const corners = [
+        { x: rx1, y: ry1 },
+        { x: rx2, y: ry1 },
+        { x: rx2, y: ry2 },
+        { x: rx1, y: ry2 },
+        { x: rx1, y: ry1 }
+      ];
+      const rectPts = [];
+      for (let i = 0; i < 4; i++) {
+        const A = corners[i], B = corners[i + 1];
+        const segLen = Math.hypot(B.x - A.x, B.y - A.y);
+        const steps = Math.max(2, Math.ceil(segLen / 4));
+        for (let j = 0; j < steps; j++) {
+          const t = j / steps;
+          rectPts.push({
+            x: Math.round((A.x + (B.x - A.x) * t) * 10) / 10,
+            y: Math.round((A.y + (B.y - A.y) * t) * 10) / 10
+          });
+        }
+      }
+      rectPts.push({ x: Math.round(rx1 * 10) / 10, y: Math.round(ry1 * 10) / 10 });
       return {
-        type: 'rect',
+        type: 'path',
         shapeLabel: isSquare ? 'Quadrado' : 'Retângulo',
         color,
         size,
-        x1: Math.round(rx1 * 10) / 10,
-        y1: Math.round(ry1 * 10) / 10,
-        x2: Math.round(rx2 * 10) / 10,
-        y2: Math.round(ry2 * 10) / 10
+        points: rectPts
       };
     }
 
-    // 3. Circle / Ellipse Check
-    // If it is not a triangle and not a square/rect, it is a smooth closed curve (circle or ellipse)
+    // Default fallback: smooth circle path
     const aspect = w / h;
-    let finalX1 = minX, finalY1 = minY, finalX2 = maxX, finalY2 = maxY;
     const isTrueCircle = aspect >= 0.80 && aspect <= 1.25;
+    let finalRx = rx, finalRy = ry;
     if (isTrueCircle) {
-      const d = (w + h) / 2;
-      finalX1 = cx - d / 2;
-      finalY1 = cy - d / 2;
-      finalX2 = cx + d / 2;
-      finalY2 = cy + d / 2;
+      const avgR = (rx + ry) / 2;
+      finalRx = avgR;
+      finalRy = avgR;
+    }
+    const circlePts = [];
+    const numSteps = 72;
+    for (let i = 0; i <= numSteps; i++) {
+      const th = (i / numSteps) * Math.PI * 2;
+      circlePts.push({
+        x: Math.round((cx + finalRx * Math.cos(th)) * 10) / 10,
+        y: Math.round((cy + finalRy * Math.sin(th)) * 10) / 10
+      });
     }
     return {
-      type: 'circle',
+      type: 'path',
       shapeLabel: isTrueCircle ? 'Círculo' : 'Elipse',
       color,
       size,
-      x1: Math.round(finalX1 * 10) / 10,
-      y1: Math.round(finalY1 * 10) / 10,
-      x2: Math.round(finalX2 * 10) / 10,
-      y2: Math.round(finalY2 * 10) / 10
+      points: circlePts
     };
   }
 
@@ -4473,23 +4522,25 @@ function handlePointerUp(e) {
         const finalRawPt = screenToCanvas(mouseX, mouseY);
         strokeSmoother.finish();
 
-        // Ensure final point is accurately represented
-        if (currentPath.points.length > 1) {
-          const lastPt = currentPath.points[currentPath.points.length - 1];
-          if (Math.hypot(finalRawPt.x - lastPt.x, finalRawPt.y - lastPt.y) >= 1.5) {
-            currentPath.points.push({
-              x: Math.round(finalRawPt.x * 10) / 10,
-              y: Math.round(finalRawPt.y * 10) / 10
-            });
+        if (!currentPath.isSmartShape) {
+          // Ensure final point is accurately represented
+          if (currentPath.points.length > 1) {
+            const lastPt = currentPath.points[currentPath.points.length - 1];
+            if (Math.hypot(finalRawPt.x - lastPt.x, finalRawPt.y - lastPt.y) >= 1.5) {
+              currentPath.points.push({
+                x: Math.round(finalRawPt.x * 10) / 10,
+                y: Math.round(finalRawPt.y * 10) / 10
+              });
+            }
           }
-        }
 
-        // Gentle simplification to remove micro-collinear duplicates without altering curves or corners
-        currentPath.points = simplifyPolyline(currentPath.points, 0.25);
-        currentPath.points.forEach(p => {
-          p.x = Math.round(p.x * 10) / 10;
-          p.y = Math.round(p.y * 10) / 10;
-        });
+          // Gentle simplification to remove micro-collinear duplicates without altering curves or corners
+          currentPath.points = simplifyPolyline(currentPath.points, 0.25);
+          currentPath.points.forEach(p => {
+            p.x = Math.round(p.x * 10) / 10;
+            p.y = Math.round(p.y * 10) / 10;
+          });
+        }
 
         isValid = currentPath.points.length >= 1;
       } else {
@@ -4829,42 +4880,89 @@ function eraseCircleStep(cx, cy, radius) {
         newElements.push(clipped[k]);
       }
     } else if (el.type === 'triangle') {
-      const bbox = getElementBoundingBox(el);
-      if (bbox) {
-        let hit = false;
-        if (el.points && el.points.length >= 3) {
-          if (pointInTriangle(cx, cy, el.points[0], el.points[1], el.points[2])) {
-            hit = true;
-          } else {
-            const rSq = radius * radius;
-            if (distToSegmentSquared(cx, cy, el.points[0].x, el.points[0].y, el.points[1].x, el.points[1].y) <= rSq ||
-                distToSegmentSquared(cx, cy, el.points[1].x, el.points[1].y, el.points[2].x, el.points[2].y) <= rSq ||
-                distToSegmentSquared(cx, cy, el.points[2].x, el.points[2].y, el.points[0].x, el.points[0].y) <= rSq) {
-              hit = true;
-            }
-          }
+      let hit = false;
+      const hasFill = el.fill && el.fill !== 'transparent' && el.fill !== 'none';
+      if (el.points && el.points.length >= 3) {
+        if (hasFill && pointInTriangle(cx, cy, el.points[0], el.points[1], el.points[2])) {
+          hit = true;
         } else {
-          if (cx + radius >= bbox.x && cx - radius <= bbox.x + bbox.width &&
-              cy + radius >= bbox.y && cy - radius <= bbox.y + bbox.height) {
+          const effR = radius + (el.size || 2) / 2;
+          const rSq = effR * effR;
+          if (distToSegmentSquared(cx, cy, el.points[0].x, el.points[0].y, el.points[1].x, el.points[1].y) <= rSq ||
+              distToSegmentSquared(cx, cy, el.points[1].x, el.points[1].y, el.points[2].x, el.points[2].y) <= rSq ||
+              distToSegmentSquared(cx, cy, el.points[2].x, el.points[2].y, el.points[0].x, el.points[0].y) <= rSq) {
             hit = true;
           }
         }
-        if (hit) {
-          changed = true;
-          invalidateElementBBox(el);
-          // removed
-        } else {
-          newElements.push(el);
+      } else {
+        const bbox = getElementBoundingBox(el);
+        if (bbox) {
+          const nearX = Math.max(bbox.x, Math.min(cx, bbox.x + bbox.width));
+          const nearY = Math.max(bbox.y, Math.min(cy, bbox.y + bbox.height));
+          hit = Math.hypot(cx - nearX, cy - nearY) <= radius;
         }
+      }
+      if (hit) {
+        changed = true;
+        invalidateElementBBox(el);
       } else {
         newElements.push(el);
       }
-    } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes' || el.type === 'sticky') {
-      const bbox = getElementBoundingBox(el);
-      if (bbox && cx + radius >= bbox.x && cx - radius <= bbox.x + bbox.width && cy + radius >= bbox.y && cy - radius <= bbox.y + bbox.height) {
+    } else if (el.type === 'circle') {
+      let hit = false;
+      const r = Math.abs(el.x2 - el.x1) / 2;
+      const elCx = (el.x1 + el.x2) / 2;
+      const elCy = (el.y1 + el.y2) / 2;
+      const dist = Math.hypot(cx - elCx, cy - elCy);
+      const hasFill = el.fill && el.fill !== 'transparent' && el.fill !== 'none';
+      if (hasFill) {
+        hit = dist <= r + radius;
+      } else {
+        const effR = radius + (el.size || 2) / 2;
+        hit = Math.abs(dist - r) <= effR;
+      }
+      if (hit) {
         changed = true;
         invalidateElementBBox(el);
-        // removed
+      } else {
+        newElements.push(el);
+      }
+    } else if (el.type === 'rect') {
+      let hit = false;
+      const rx1 = Math.min(el.x1, el.x2);
+      const ry1 = Math.min(el.y1, el.y2);
+      const rx2 = Math.max(el.x1, el.x2);
+      const ry2 = Math.max(el.y1, el.y2);
+      const hasFill = el.fill && el.fill !== 'transparent' && el.fill !== 'none';
+      if (hasFill) {
+        const nearX = Math.max(rx1, Math.min(cx, rx2));
+        const nearY = Math.max(ry1, Math.min(cy, ry2));
+        hit = Math.hypot(cx - nearX, cy - nearY) <= radius;
+      } else {
+        const effR = radius + (el.size || 2) / 2;
+        const rSq = effR * effR;
+        hit = distToSegmentSquared(cx, cy, rx1, ry1, rx2, ry1) <= rSq ||
+              distToSegmentSquared(cx, cy, rx2, ry1, rx2, ry2) <= rSq ||
+              distToSegmentSquared(cx, cy, rx2, ry2, rx1, ry2) <= rSq ||
+              distToSegmentSquared(cx, cy, rx1, ry2, rx1, ry1) <= rSq;
+      }
+      if (hit) {
+        changed = true;
+        invalidateElementBBox(el);
+      } else {
+        newElements.push(el);
+      }
+    } else if (el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'diamond' || el.type === 'axes' || el.type === 'sticky') {
+      const bbox = getElementBoundingBox(el);
+      if (bbox) {
+        const nearX = Math.max(bbox.x, Math.min(cx, bbox.x + bbox.width));
+        const nearY = Math.max(bbox.y, Math.min(cy, bbox.y + bbox.height));
+        if (Math.hypot(cx - nearX, cy - nearY) <= radius) {
+          changed = true;
+          invalidateElementBBox(el);
+        } else {
+          newElements.push(el);
+        }
       } else {
         newElements.push(el);
       }
