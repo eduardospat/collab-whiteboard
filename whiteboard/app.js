@@ -1110,6 +1110,26 @@ function renderOverlayElements(targetCtx) {
       drawLaserTrail(targetCtx, trail);
     });
   }
+
+  // 7. Render high-performance hardware-accelerated eraser cursor
+  if (currentTool === 'eraser' && !spacePressed && !isPanning && typeof eraserHoverPos !== 'undefined' && eraserHoverPos && eraserHoverPos.isInside) {
+    const r = getEraserRadius();
+    targetCtx.save();
+    targetCtx.beginPath();
+    targetCtx.arc(eraserHoverPos.x, eraserHoverPos.y, r, 0, Math.PI * 2);
+    targetCtx.fillStyle = 'rgba(239, 68, 68, 0.14)';
+    targetCtx.fill();
+    targetCtx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+    targetCtx.lineWidth = Math.max(1, 1.5 / zoom);
+    targetCtx.stroke();
+
+    // Center precision dot
+    targetCtx.beginPath();
+    targetCtx.arc(eraserHoverPos.x, eraserHoverPos.y, Math.max(1.2, 2 / zoom), 0, Math.PI * 2);
+    targetCtx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+    targetCtx.fill();
+    targetCtx.restore();
+  }
 }
 
 // Full Synchronous Render for backward compatibility
@@ -3977,6 +3997,20 @@ let initialPinchZoom = 1.0;
 let initialPinchCenter = null;
 let initialPinchPan = null;
 
+// Cached canvas bounding rect to eliminate DOM layout thrashing during mousemove
+let cachedCanvasRect = null;
+function getCanvasBoundingRect() {
+  if (!cachedCanvasRect) {
+    cachedCanvasRect = canvas.getBoundingClientRect();
+  }
+  return cachedCanvasRect;
+}
+function invalidateCanvasBoundingRect() {
+  cachedCanvasRect = null;
+}
+window.addEventListener('resize', invalidateCanvasBoundingRect);
+window.addEventListener('scroll', invalidateCanvasBoundingRect, true);
+
 // Pointer event handlers
 function handlePointerDown(e) {
   if (e.pointerId !== undefined) {
@@ -4012,7 +4046,8 @@ function handlePointerDown(e) {
     e.preventDefault();
   }
 
-  const rect = canvas.getBoundingClientRect();
+  cachedCanvasRect = canvas.getBoundingClientRect();
+  const rect = cachedCanvasRect;
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
 
@@ -4175,7 +4210,7 @@ function handlePointerDown(e) {
     const radius = getEraserRadius();
     if (eraseCircleStep(pt.x, pt.y, radius)) {
       eraseModified = true;
-      render();
+      requestRenderAll();
     }
     return;
   }
@@ -4225,7 +4260,7 @@ function handlePointerMove(e) {
       const scale = currentDist / initialPinchDist;
       const newZoom = Math.min(Math.max(0.15, initialPinchZoom * scale), 5.0);
 
-      const rect = canvas.getBoundingClientRect();
+      const rect = getCanvasBoundingRect();
       const originX = initialPinchCenter.x - rect.left;
       const originY = initialPinchCenter.y - rect.top;
 
@@ -4251,7 +4286,7 @@ function handlePointerMove(e) {
     return;
   }
 
-  const rect = canvas.getBoundingClientRect();
+  const rect = getCanvasBoundingRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
   const isInside = mouseX >= 0 && mouseX <= rect.width && mouseY >= 0 && mouseY <= rect.height;
@@ -4634,48 +4669,53 @@ function updateZoomIndicator() {
 let lastErasePoint = null;
 let eraseStartState = null;
 let eraseModified = false;
+let eraserHoverPos = null;
 const eraserCursor = document.getElementById('eraserCursor');
+if (eraserCursor) {
+  eraserCursor.style.display = 'none';
+}
 
 function getEraserRadius() {
   return Math.round(Math.max(10, Math.min(80, currentSize * 2.2 + 8)));
 }
 
 function updateEraserCursorPos(screenX, screenY) {
-  if (!eraserCursor) return;
   if (currentTool !== 'eraser' || spacePressed || isPanning) {
-    eraserCursor.style.display = 'none';
+    if (eraserHoverPos) {
+      eraserHoverPos = null;
+      requestRenderOverlay();
+    }
     wrapper.classList.remove('eraser-mode');
     return;
   }
-  const radius = getEraserRadius();
-  const screenRadius = radius * zoom;
-  const d = Math.round(screenRadius * 2);
-
-  eraserCursor.style.width = `${d}px`;
-  eraserCursor.style.height = `${d}px`;
-  eraserCursor.style.left = `${screenX}px`;
-  eraserCursor.style.top = `${screenY}px`;
-  eraserCursor.style.display = 'block';
-  wrapper.classList.add('eraser-mode');
+  const pt = screenToCanvas(screenX, screenY);
+  eraserHoverPos = { x: pt.x, y: pt.y, isInside: true };
+  if (!wrapper.classList.contains('eraser-mode')) {
+    wrapper.classList.add('eraser-mode');
+  }
+  requestRenderOverlay();
 }
 
 function updateEraserCursorSize() {
-  if (!eraserCursor) return;
-  if (currentTool !== 'eraser' || spacePressed || isPanning) {
-    eraserCursor.style.display = 'none';
+  if (currentTool === 'eraser' && !spacePressed && !isPanning) {
+    if (!wrapper.classList.contains('eraser-mode')) {
+      wrapper.classList.add('eraser-mode');
+    }
+    requestRenderOverlay();
+  } else {
     wrapper.classList.remove('eraser-mode');
-    return;
+    if (eraserHoverPos) {
+      eraserHoverPos = null;
+      requestRenderOverlay();
+    }
   }
-  const radius = getEraserRadius();
-  const screenRadius = radius * zoom;
-  const d = Math.round(screenRadius * 2);
-  eraserCursor.style.width = `${d}px`;
-  eraserCursor.style.height = `${d}px`;
 }
 
 function hideEraserCursor() {
-  if (!eraserCursor) return;
-  eraserCursor.style.display = 'none';
+  if (eraserHoverPos) {
+    eraserHoverPos = null;
+    requestRenderOverlay();
+  }
   wrapper.classList.remove('eraser-mode');
 }
 
@@ -4864,17 +4904,37 @@ function eraseCircleStep(cx, cy, radius) {
     }
 
     if (el.type === 'path') {
+      const bbox = getCachedElementBBox(el);
+      if (bbox) {
+        const pad = radius + (el.size || 2.5) + 2;
+        if (cx + pad < bbox.x || cx - pad > bbox.x + bbox.width ||
+            cy + pad < bbox.y || cy - pad > bbox.y + bbox.height) {
+          newElements.push(el);
+          continue;
+        }
+      }
       const clipped = clipPathByCircle(el, cx, cy, radius);
       if (clipped.length !== 1 || clipped[0] !== el) {
         changed = true;
+        invalidateElementBBox(el);
       }
       for (let k = 0; k < clipped.length; k++) {
         newElements.push(clipped[k]);
       }
     } else if (el.type === 'line' || el.type === 'arrow') {
+      const pad = radius + (el.size || 2.5) + 2;
+      const minX = Math.min(el.x1, el.x2) - pad;
+      const maxX = Math.max(el.x1, el.x2) + pad;
+      const minY = Math.min(el.y1, el.y2) - pad;
+      const maxY = Math.max(el.y1, el.y2) + pad;
+      if (cx < minX || cx > maxX || cy < minY || cy > maxY) {
+        newElements.push(el);
+        continue;
+      }
       const clipped = clipLineOrArrow(el, cx, cy, radius);
       if (clipped.length !== 1 || clipped[0] !== el) {
         changed = true;
+        invalidateElementBBox(el);
       }
       for (let k = 0; k < clipped.length; k++) {
         newElements.push(clipped[k]);
@@ -4987,7 +5047,7 @@ function eraseCircleStep(cx, cy, radius) {
 function eraseAlongSegment(x1, y1, x2, y2) {
   const radius = getEraserRadius();
   const dist = Math.hypot(x2 - x1, y2 - y1);
-  const step = Math.max(4, radius * 0.4);
+  const step = Math.max(6, radius * 0.5);
   const steps = Math.max(1, Math.ceil(dist / step));
   let anyChange = false;
 
@@ -5002,7 +5062,7 @@ function eraseAlongSegment(x1, y1, x2, y2) {
 
   if (anyChange) {
     eraseModified = true;
-    render();
+    requestRenderAll();
   }
 }
 
