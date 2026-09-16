@@ -4828,10 +4828,42 @@ function eraseCircleStep(cx, cy, radius) {
       for (let k = 0; k < clipped.length; k++) {
         newElements.push(clipped[k]);
       }
+    } else if (el.type === 'triangle') {
+      const bbox = getElementBoundingBox(el);
+      if (bbox) {
+        let hit = false;
+        if (el.points && el.points.length >= 3) {
+          if (pointInTriangle(cx, cy, el.points[0], el.points[1], el.points[2])) {
+            hit = true;
+          } else {
+            const rSq = radius * radius;
+            if (distToSegmentSquared(cx, cy, el.points[0].x, el.points[0].y, el.points[1].x, el.points[1].y) <= rSq ||
+                distToSegmentSquared(cx, cy, el.points[1].x, el.points[1].y, el.points[2].x, el.points[2].y) <= rSq ||
+                distToSegmentSquared(cx, cy, el.points[2].x, el.points[2].y, el.points[0].x, el.points[0].y) <= rSq) {
+              hit = true;
+            }
+          }
+        } else {
+          if (cx + radius >= bbox.x && cx - radius <= bbox.x + bbox.width &&
+              cy + radius >= bbox.y && cy - radius <= bbox.y + bbox.height) {
+            hit = true;
+          }
+        }
+        if (hit) {
+          changed = true;
+          invalidateElementBBox(el);
+          // removed
+        } else {
+          newElements.push(el);
+        }
+      } else {
+        newElements.push(el);
+      }
     } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes' || el.type === 'sticky') {
       const bbox = getElementBoundingBox(el);
-      if (bbox && cx >= bbox.x && cx <= bbox.x + bbox.width && cy >= bbox.y && cy <= bbox.y + bbox.height) {
+      if (bbox && cx + radius >= bbox.x && cx - radius <= bbox.x + bbox.width && cy + radius >= bbox.y && cy - radius <= bbox.y + bbox.height) {
         changed = true;
+        invalidateElementBBox(el);
         // removed
       } else {
         newElements.push(el);
