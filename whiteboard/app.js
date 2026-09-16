@@ -7,6 +7,8 @@
 // Canvas & Context
 const canvas = document.getElementById('whiteboardCanvas');
 const ctx = canvas.getContext('2d');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
 const wrapper = document.getElementById('canvasWrapper');
 
 // State
@@ -25,14 +27,82 @@ let spacePressed = false;
 
 // Drawing State
 let currentTool = 'pen';
-let currentColor = '#1e293b';
+let currentColor = localStorage.getItem('whiteboard_current_color') || '#1e293b';
 let currentSize = parseFloat(localStorage.getItem('whiteboard_stroke_size')) || 2.5;
 let isDrawing = false;
 let startX = 0;
 let startY = 0;
 
+// ==================== Color & Geometry Math Utilities ====================
+function hsvToRgb(h, s, v) {
+  let r, g, b;
+  const i = Math.floor(h / 60) % 6;
+  const f = h / 60 - Math.floor(h / 60);
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255)
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(x => Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex) {
+  if (!hex) return { r: 30, g: 41, b: 59 };
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  if (c.length !== 6) return { r: 30, g: 41, b: 59 };
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return { r: 30, g: 41, b: 59 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+  if (max !== min) {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: h * 360, s, v };
+}
+
+function pointInTriangle(px, py, p1, p2, p3) {
+  const d1 = (px - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (py - p2.y);
+  const d2 = (px - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (py - p2.y);
+  const d3 = (px - p1.x) * (p3.y - p1.y) - (p1.x - p3.x) * (py - p1.y);
+  const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+  const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+  return !(hasNeg && hasPos);
+}
+
 // Data Layers
-let elements = []; // { type: 'path'|'line'|'arrow'|'rect'|'circle'|'diamond'|'axes'|'sticky'|'mux'|'alu'|'text'|'image', ... }
+let elements = []; // { type: 'path'|'line'|'arrow'|'rect'|'circle'|'triangle'|'diamond'|'axes'|'sticky'|'mux'|'alu'|'text'|'image', ... }
 let undoStack = [];
 let redoStack = [];
 let pendingUndoState = null;
@@ -524,6 +594,7 @@ window.addEventListener('load', () => {
   try { setupEventListeners(); } catch (e) { console.error('setupEventListeners:', e); }
   try { setStrokeSize(currentSize, true); } catch (e) { console.error('setStrokeSize:', e); }
   try { setupHotkeys(); } catch (e) { console.error('setupHotkeys:', e); }
+  try { setupSelectionHud(); } catch (e) { console.error('setupSelectionHud:', e); }
   try { updateUndoRedoUI(); } catch (e) { console.error('updateUndoRedoUI:', e); }
   try { setupCollabUI(); } catch (e) { console.error('setupCollabUI:', e); }
   try { setupHubUI(); } catch (e) { console.error('setupHubUI:', e); }
@@ -569,10 +640,20 @@ function resizeCanvas() {
   height = wrapper.clientHeight;
   dpr = window.devicePixelRatio || 1;
 
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
+  const pixelW = Math.floor(width * dpr);
+  const pixelH = Math.floor(height * dpr);
+
+  canvas.width = pixelW;
+  canvas.height = pixelH;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
+
+  if (overlayCanvas) {
+    overlayCanvas.width = pixelW;
+    overlayCanvas.height = pixelH;
+    overlayCanvas.style.width = `${width}px`;
+    overlayCanvas.style.height = `${height}px`;
+  }
 
   render();
 }
@@ -871,8 +952,55 @@ function drawGrid(context, mode) {
   context.restore();
 }
 
-// Render Canvas
-function render() {
+// ==================== High-Performance Dual-Canvas & VSYNC Engine ====================
+let baseRenderRequested = false;
+let overlayRenderRequested = false;
+let lastRenderedZoomPercent = -1;
+
+function requestRenderBase() {
+  if (baseRenderRequested) return;
+  baseRenderRequested = true;
+  requestAnimationFrame(renderBaseFrame);
+}
+
+function renderBaseFrame() {
+  baseRenderRequested = false;
+  renderBase();
+}
+
+function requestRenderOverlay() {
+  if (overlayRenderRequested) return;
+  overlayRenderRequested = true;
+  requestAnimationFrame(renderOverlayFrame);
+}
+
+function renderOverlayFrame() {
+  overlayRenderRequested = false;
+  renderOverlay();
+}
+
+function requestRenderAll() {
+  requestRenderBase();
+  requestRenderOverlay();
+}
+
+// Bounding Box Caching for Viewport Frustum Culling
+function getCachedElementBBox(el) {
+  if (!el) return null;
+  if (el._bbox) return el._bbox;
+  const bbox = getElementBoundingBox(el);
+  if (bbox) {
+    el._bbox = bbox;
+  }
+  return bbox;
+}
+
+function invalidateElementBBox(el) {
+  if (el) delete el._bbox;
+}
+
+// Render Base Canvas (Grid + Committed Elements with Viewport Culling)
+function renderBase() {
   ctx.save();
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, width, height);
@@ -886,43 +1014,108 @@ function render() {
     drawGrid(ctx, gridMode);
   }
 
-  // Render elements
-  elements.forEach(el => drawElement(ctx, el));
+  // Frustum Culling: only draw elements visible in viewport + safety margin
+  const margin = 80 / zoom;
+  const viewMinX = -panX / zoom - margin;
+  const viewMinY = -panY / zoom - margin;
+  const viewMaxX = -panX / zoom + width / zoom + margin;
+  const viewMaxY = -panY / zoom + height / zoom + margin;
 
-  // Render active drawing path/shape preview
-  if (isDrawing && currentPath) {
-    drawElement(ctx, currentPath);
+  const len = elements.length;
+  for (let i = 0; i < len; i++) {
+    const el = elements[i];
+    const bbox = getCachedElementBBox(el);
+    if (bbox) {
+      if (bbox.x + bbox.width < viewMinX || bbox.x > viewMaxX ||
+          bbox.y + bbox.height < viewMinY || bbox.y > viewMaxY) {
+        continue; // Skip offscreen element completely
+      }
+    }
+    drawElement(ctx, el);
   }
 
-  // Render peer live strokes in progress
+  // Fallback if overlay canvas is absent: render overlays on base canvas
+  if (!overlayCtx) {
+    renderOverlayElements(ctx);
+  }
+
+  ctx.restore();
+
+  const curZoomPercent = Math.round(zoom * 100);
+  if (curZoomPercent !== lastRenderedZoomPercent) {
+    lastRenderedZoomPercent = curZoomPercent;
+    updateZoomIndicator();
+  }
+}
+
+// Render Interactive Overlay Canvas (Active Strokes, Peers, Cursors, Selection)
+function renderOverlay() {
+  if (!overlayCtx) return;
+
+  overlayCtx.save();
+  overlayCtx.scale(dpr, dpr);
+  overlayCtx.clearRect(0, 0, width, height);
+
+  // Apply Pan & Zoom
+  overlayCtx.translate(panX, panY);
+  overlayCtx.scale(zoom, zoom);
+
+  renderOverlayElements(overlayCtx);
+
+  overlayCtx.restore();
+
+  updateSelectionHud();
+}
+
+// Helper to render interactive elements onto target context
+function renderOverlayElements(targetCtx) {
+  // 1. Render active local drawing path/shape preview
+  if (isDrawing && currentPath) {
+    drawElement(targetCtx, currentPath);
+  }
+
+  // 2. Render peer live strokes in progress
   peerLiveStrokes.forEach(stroke => {
-    drawElement(ctx, stroke);
+    drawElement(targetCtx, stroke);
   });
 
-  // Draw selection outline
+  // 3. Draw selection outline
   if (selectedElements.length === 1) {
-    drawSelectionBox(ctx, selectedElements[0]);
+    drawSelectionBox(targetCtx, selectedElements[0]);
   } else if (selectedElements.length > 1) {
-    drawGroupSelectionBox(ctx, selectedElements);
+    drawGroupSelectionBox(targetCtx, selectedElements);
   } else if (selectedElement) {
-    drawSelectionBox(ctx, selectedElement);
+    drawSelectionBox(targetCtx, selectedElement);
   }
 
-  // Draw area selection marquee if active
+  // 4. Draw area selection marquee if active
   if (isAreaSelecting && areaSelectStartPt && areaSelectCurrentPt) {
-    drawAreaSelectionMarquee(ctx, areaSelectStartPt, areaSelectCurrentPt);
+    drawAreaSelectionMarquee(targetCtx, areaSelectStartPt, areaSelectCurrentPt);
   }
 
-  // Draw peer cursors
+  // 5. Draw peer cursors
   const now = Date.now();
   peerCursors.forEach((peer) => {
     if (now - peer.lastSeen < 15000) {
-      drawPeerCursor(ctx, peer);
+      drawPeerCursor(targetCtx, peer);
     }
   });
 
-  ctx.restore();
-  updateZoomIndicator();
+  // 6. Draw laser trails
+  if (typeof localLaserTrail !== 'undefined' && localLaserTrail.length > 0) {
+    drawLaserTrail(targetCtx, localLaserTrail);
+  }
+  if (typeof peerLaserTrails !== 'undefined') {
+    peerLaserTrails.forEach((trail) => {
+      drawLaserTrail(targetCtx, trail);
+    });
+  }
+}
+
+// Full Synchronous Render for backward compatibility
+function render() {
+  renderBase();
+  renderOverlay();
 }
 
 /**
@@ -1065,6 +1258,29 @@ function drawElement(context, el) {
     const rh = Math.abs(el.y2 - el.y1);
     context.fillRect(rx, ry, rw, rh);
     context.strokeRect(rx, ry, rw, rh);
+  }
+  else if (el.type === 'triangle') {
+    context.strokeStyle = el.color;
+    context.lineWidth = el.size;
+    context.fillStyle = el.fillColor || 'rgba(255, 255, 255, 0.7)';
+    context.lineJoin = 'round';
+    context.beginPath();
+    if (el.points && el.points.length >= 3) {
+      context.moveTo(el.points[0].x, el.points[0].y);
+      context.lineTo(el.points[1].x, el.points[1].y);
+      context.lineTo(el.points[2].x, el.points[2].y);
+    } else {
+      const rx = Math.min(el.x1, el.x2);
+      const ry = Math.min(el.y1, el.y2);
+      const rw = Math.abs(el.x2 - el.x1);
+      const rh = Math.abs(el.y2 - el.y1);
+      context.moveTo(rx + rw / 2, ry);
+      context.lineTo(rx + rw, ry + rh);
+      context.lineTo(rx, ry + rh);
+    }
+    context.closePath();
+    context.fill();
+    context.stroke();
   }
   else if (el.type === 'circle') {
     const rx = Math.min(el.x1, el.x2);
@@ -1348,7 +1564,22 @@ function getElementBoundingBox(el) {
   if (!el) return null;
   if (el.type === 'image' || el.type === 'sticky') {
     return { x: el.x, y: el.y, width: el.width || 200, height: el.height || 180 };
-  } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
+  } else if (el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes' || el.type === 'triangle') {
+    if (el.points && el.points.length >= 3) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of el.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return {
+        x: minX,
+        y: minY,
+        width: Math.max(12, maxX - minX),
+        height: Math.max(12, maxY - minY)
+      };
+    }
     const x = Math.min(el.x1, el.x2);
     const y = Math.min(el.y1, el.y2);
     return {
@@ -1454,6 +1685,14 @@ function hitTestElement(el, px, py) {
   if (px < bbox.x - margin || px > bbox.x + bbox.width + margin ||
       py < bbox.y - margin || py > bbox.y + bbox.height + margin) {
     return false;
+  }
+
+  if (el.type === 'triangle') {
+    if (px < bbox.x - 4 || px > bbox.x + bbox.width + 4 || py < bbox.y - 4 || py > bbox.y + bbox.height + 4) return false;
+    if (el.points && el.points.length >= 3) {
+      return pointInTriangle(px, py, el.points[0], el.points[1], el.points[2]);
+    }
+    return true;
   }
 
   if (el.type === 'image' || el.type === 'sticky' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
@@ -1614,7 +1853,7 @@ function elementIntersectsArea(el, area) {
   if (!bbox) return false;
   if (!boxIntersectsBox(bbox, area)) return false;
 
-  if (el.type === 'image' || el.type === 'sticky' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes') {
+  if (el.type === 'image' || el.type === 'sticky' || el.type === 'rect' || el.type === 'mux' || el.type === 'alu' || el.type === 'text' || el.type === 'circle' || el.type === 'diamond' || el.type === 'axes' || el.type === 'triangle') {
     return true;
   }
 
@@ -1744,11 +1983,15 @@ function startSelectionDrag(pt) {
   dragStartPt = { x: pt.x, y: pt.y };
   dragStartState = serializeBoardState();
   dragOriginalDataList = selectedElements.map(el => {
-    if (el.type === 'path' && el.points) {
+    if (el.points && Array.isArray(el.points)) {
       return {
         el,
-        type: 'path',
-        points: el.points.map(p => ({ x: p.x, y: p.y }))
+        type: el.type,
+        points: el.points.map(p => ({ x: p.x, y: p.y })),
+        x1: el.x1,
+        y1: el.y1,
+        x2: el.x2,
+        y2: el.y2
       };
     } else if (el.type === 'image' || el.type === 'text' || el.type === 'sticky') {
       return {
@@ -1786,12 +2029,14 @@ function updateSelectionDrag(pt) {
 
   for (const item of dragOriginalDataList) {
     const el = item.el;
-    if (item.type === 'path') {
+    invalidateElementBBox(el);
+    if (item.points && Array.isArray(item.points) && el.points) {
       for (let i = 0; i < el.points.length; i++) {
         el.points[i].x = Math.round((item.points[i].x + dx) * 10) / 10;
         el.points[i].y = Math.round((item.points[i].y + dy) * 10) / 10;
       }
-    } else if (item.type === 'image' || item.type === 'text' || item.type === 'sticky') {
+    }
+    if (item.type === 'image' || item.type === 'text' || item.type === 'sticky') {
       el.x = Math.round((item.x + dx) * 10) / 10;
       el.y = Math.round((item.y + dy) * 10) / 10;
     } else if (item.x1 !== undefined) {
@@ -1801,7 +2046,7 @@ function updateSelectionDrag(pt) {
       el.y2 = Math.round((item.y2 + dy) * 10) / 10;
     }
   }
-  render();
+  requestRenderAll();
 }
 
 function startElementDrag(el, pt) {
@@ -1819,7 +2064,6 @@ function startImageResize(el, handle, pt) {
   isResizingElement = true;
   resizeHandle = handle.id;
   resizeStartPt = { x: pt.x, y: pt.y };
-  resizeStartState = serializeBoardState();
   resizeOriginalBox = {
     x: el.x,
     y: el.y,
@@ -1827,15 +2071,16 @@ function startImageResize(el, handle, pt) {
     height: el.height,
     aspectRatio: (el.width || 1) / (el.height || 1)
   };
+  resizeStartState = serializeBoardState();
 }
 
 function updateImageResize(pt, shiftKey = false) {
-  if (!selectedElement || !resizeOriginalBox || !resizeStartPt) return;
+  if (!isResizingElement || !selectedElement || !resizeOriginalBox || !resizeStartPt) return;
+
   const dx = pt.x - resizeStartPt.x;
   const dy = pt.y - resizeStartPt.y;
   const orig = resizeOriginalBox;
   const minDim = 24;
-
   let newX = orig.x;
   let newY = orig.y;
   let newW = orig.width;
@@ -1895,7 +2140,8 @@ function updateImageResize(pt, shiftKey = false) {
   selectedElement.y = Math.round(newY * 10) / 10;
   selectedElement.width = Math.round(newW * 10) / 10;
   selectedElement.height = Math.round(newH * 10) / 10;
-  render();
+  invalidateElementBBox(selectedElement);
+  requestRenderAll();
 }
 
 // Compute total bounding box of all elements on canvas
@@ -1957,6 +2203,943 @@ function fitToScreen() {
 
   render();
   updateEraserCursorSize();
+}
+
+// ==================== Z-Index / Layer Management ====================
+function bringToFront() {
+  if (!selectedElements.length && !selectedElement) return;
+  const targets = selectedElements.length ? selectedElements : [selectedElement];
+  recordState();
+  const set = new Set(targets);
+  const others = elements.filter(el => !set.has(el));
+  elements = [...others, ...targets];
+  render();
+  scheduleAutoSave();
+  commitLocalAction();
+  showToast('Trazido para a frente');
+}
+
+function sendToBack() {
+  if (!selectedElements.length && !selectedElement) return;
+  const targets = selectedElements.length ? selectedElements : [selectedElement];
+  recordState();
+  const set = new Set(targets);
+  const others = elements.filter(el => !set.has(el));
+  elements = [...targets, ...others];
+  render();
+  scheduleAutoSave();
+  commitLocalAction();
+  showToast('Enviado para o fundo');
+}
+
+function bringForward() {
+  if (!selectedElements.length && !selectedElement) return;
+  const targets = selectedElements.length ? selectedElements : [selectedElement];
+  recordState();
+  const set = new Set(targets);
+  for (let i = elements.length - 2; i >= 0; i--) {
+    if (set.has(elements[i]) && !set.has(elements[i + 1])) {
+      const temp = elements[i];
+      elements[i] = elements[i + 1];
+      elements[i + 1] = temp;
+    }
+  }
+  render();
+  scheduleAutoSave();
+  commitLocalAction();
+  showToast('Avançado uma camada');
+}
+
+function sendBackward() {
+  if (!selectedElements.length && !selectedElement) return;
+  const targets = selectedElements.length ? selectedElements : [selectedElement];
+  recordState();
+  const set = new Set(targets);
+  for (let i = 1; i < elements.length; i++) {
+    if (set.has(elements[i]) && !set.has(elements[i - 1])) {
+      const temp = elements[i];
+      elements[i] = elements[i - 1];
+      elements[i - 1] = temp;
+    }
+  }
+  render();
+  scheduleAutoSave();
+  commitLocalAction();
+  showToast('Recuado uma camada');
+}
+
+// Quick Clone / Duplication
+function duplicateSelection(offset = 25) {
+  if (!selectedElements.length && !selectedElement) return;
+  const targets = selectedElements.length ? selectedElements : [selectedElement];
+  recordState();
+
+  const clones = targets.map(el => {
+    const copy = JSON.parse(JSON.stringify(el));
+    copy.id = (typeof generateId === 'function' ? generateId() : 'el-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7));
+    delete copy._bbox;
+
+    if (copy.points && Array.isArray(copy.points)) {
+      copy.points.forEach(p => { p.x += offset; p.y += offset; });
+    }
+    if (copy.x !== undefined) {
+      copy.x += offset;
+      copy.y += offset;
+    } else if (copy.x1 !== undefined) {
+      copy.x1 += offset;
+      copy.y1 += offset;
+      copy.x2 += offset;
+      copy.y2 += offset;
+    }
+    return copy;
+  });
+
+  clones.forEach(c => {
+    invalidateElementBBox(c);
+    elements.push(c);
+  });
+  rehydrateImages();
+
+  selectedElements = clones;
+  selectedElement = clones.length === 1 ? clones[0] : null;
+
+  render();
+  scheduleAutoSave();
+  commitLocalAction();
+  showToast(clones.length === 1 ? 'Elemento duplicado' : `${clones.length} elementos duplicados`);
+}
+
+// ==================== Floating Selection HUD ====================
+function updateSelectionHud() {
+  const hud = document.getElementById('selectionHud');
+  if (!hud) return;
+
+  if (currentTool !== 'select' || (selectedElements.length === 0 && !selectedElement) || isPanning || isDraggingElement || isResizingElement || isDrawing) {
+    hud.style.display = 'none';
+    return;
+  }
+
+  const targets = selectedElements.length > 0 ? selectedElements : (selectedElement ? [selectedElement] : []);
+  const bbox = getGroupBoundingBox(targets) || getElementBoundingBox(targets[0]);
+  if (!bbox) {
+    hud.style.display = 'none';
+    return;
+  }
+
+  const screenMinX = bbox.x * zoom + panX;
+  const screenMinY = bbox.y * zoom + panY;
+  const screenW = bbox.width * zoom;
+
+  const hudX = Math.round(screenMinX + screenW / 2);
+  const hudY = Math.round(screenMinY - 14);
+
+  hud.style.left = `${hudX}px`;
+  hud.style.top = `${Math.max(60, hudY)}px`;
+  hud.style.display = 'flex';
+}
+
+function setupSelectionHud() {
+  const btnFront = document.getElementById('btnHudBringFront');
+  const btnForward = document.getElementById('btnHudBringForward');
+  const btnBackward = document.getElementById('btnHudSendBackward');
+  const btnBack = document.getElementById('btnHudSendBack');
+  const btnDuplicate = document.getElementById('btnHudDuplicate');
+  const btnDelete = document.getElementById('btnHudDelete');
+
+  if (btnFront) btnFront.addEventListener('click', (e) => { e.stopPropagation(); bringToFront(); });
+  if (btnForward) btnForward.addEventListener('click', (e) => { e.stopPropagation(); bringForward(); });
+  if (btnBackward) btnBackward.addEventListener('click', (e) => { e.stopPropagation(); sendBackward(); });
+  if (btnBack) btnBack.addEventListener('click', (e) => { e.stopPropagation(); sendToBack(); });
+  if (btnDuplicate) btnDuplicate.addEventListener('click', (e) => { e.stopPropagation(); duplicateSelection(25); });
+  if (btnDelete) {
+    btnDelete.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedElements.length > 0) {
+        recordState();
+        const count = selectedElements.length;
+        const set = new Set(selectedElements);
+        elements = elements.filter(el => !set.has(el));
+        selectedElements = [];
+        selectedElement = null;
+        render();
+        scheduleAutoSave();
+        commitLocalAction();
+        showToast(count === 1 ? 'Elemento excluído' : `${count} elementos excluídos`);
+      } else if (selectedElement) {
+        recordState();
+        elements = elements.filter(el => el !== selectedElement);
+        selectedElement = null;
+        render();
+        scheduleAutoSave();
+        commitLocalAction();
+        showToast('Elemento excluído');
+      }
+    });
+  }
+}
+
+// ==================== Chromatic Color Wheel & Gradient Picker ====================
+let colorWheelHue = 0;
+let colorWheelSat = 1.0;
+let colorWheelVal = 1.0;
+
+function setupColorWheel() {
+  const btnColorWheelMenu = document.getElementById('btnColorWheelMenu');
+  const colorWheelPopover = document.getElementById('colorWheelPopover');
+  const wheelCanvas = document.getElementById('colorWheelCanvas');
+  const hueThumb = document.getElementById('colorWheelHueThumb');
+  const reticle = document.getElementById('colorWheelReticle');
+  const brightnessSlider = document.getElementById('colorBrightnessSlider');
+  const brightnessLabel = document.getElementById('colorBrightnessLabel');
+  const hexInput = document.getElementById('colorHexInput');
+  const previewDot = document.getElementById('popoverColorPreviewDot');
+  const activeIndicator = document.getElementById('activeColorIndicator');
+  const btnEyeDropper = document.getElementById('btnEyeDropper');
+  const quickSwatches = document.querySelectorAll('.quick-swatch:not(.eyedropper-btn)');
+
+  if (!wheelCanvas) return;
+
+  const wheelCtx = wheelCanvas.getContext('2d');
+  const width = wheelCanvas.width;
+  const height = wheelCanvas.height;
+  const radius = width / 2;
+  const cx = radius;
+  const cy = radius;
+
+  // Render the Chromatic Ring (pure intense hues) + Inner Saturation Disc
+  const imgData = wheelCtx.createImageData(width, height);
+  const data = imgData.data;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.hypot(dx, dy);
+      const idx = (y * width + x) * 4;
+
+      if (dist >= 60 && dist <= 88) {
+        // Outer Pure Hue Ring (100% Saturation & 100% Brightness: Vermelhao, Verdao, Azulzao, etc.)
+        const angle = Math.atan2(dy, dx);
+        const hue = (angle * 180 / Math.PI + 360) % 360;
+        const rgb = hsvToRgb(hue, 1.0, 1.0);
+
+        const outerEdge = 88 - dist;
+        const innerEdge = dist - 60;
+        const alpha = Math.max(0, Math.min(1, Math.min(outerEdge, innerEdge)));
+
+        data[idx] = rgb.r;
+        data[idx + 1] = rgb.g;
+        data[idx + 2] = rgb.b;
+        data[idx + 3] = Math.round(alpha * 255);
+      } else if (dist <= 54) {
+        // Inner Saturation Disc (White at center -> Pure Hue at perimeter)
+        const angle = Math.atan2(dy, dx);
+        const hue = (angle * 180 / Math.PI + 360) % 360;
+        const sat = Math.min(1.0, dist / 54);
+        const rgb = hsvToRgb(hue, sat, 1.0);
+
+        const edgeDist = 54 - dist;
+        const alpha = edgeDist < 1.0 ? Math.max(0, Math.min(1, edgeDist)) : 1.0;
+
+        data[idx] = rgb.r;
+        data[idx + 1] = rgb.g;
+        data[idx + 2] = rgb.b;
+        data[idx + 3] = Math.round(alpha * 255);
+      } else {
+        // Smooth gap between inner disc and outer ring
+        data[idx + 3] = 0;
+      }
+    }
+  }
+
+  wheelCtx.putImageData(imgData, 0, 0);
+
+  function syncFromHex(hex, updateAll = true) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return;
+    const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+    colorWheelHue = hsv.h;
+    colorWheelSat = hsv.s;
+    colorWheelVal = hsv.v;
+    applyColorState(hex, updateAll);
+  }
+
+  function applyColorState(hex, updateInputs = true) {
+    currentColor = hex;
+    localStorage.setItem('whiteboard_current_color', hex);
+
+    if (activeIndicator) activeIndicator.style.backgroundColor = hex;
+    if (previewDot) previewDot.style.backgroundColor = hex;
+    if (hexInput && updateInputs) hexInput.value = hex.toUpperCase();
+
+    // Pure hue color for slider track & hue thumb
+    const pureRgb = hsvToRgb(colorWheelHue, 1.0, 1.0);
+    const pureHex = rgbToHex(pureRgb.r, pureRgb.g, pureRgb.b);
+
+    // Update brightness slider track & label
+    if (brightnessSlider) {
+      brightnessSlider.style.background = `linear-gradient(to right, #000000, ${pureHex})`;
+      if (updateInputs) {
+        const valPct = Math.round(colorWheelVal * 100);
+        brightnessSlider.value = valPct;
+        if (brightnessLabel) brightnessLabel.textContent = `${valPct}%`;
+      }
+    }
+
+    const angleRad = (colorWheelHue * Math.PI) / 180;
+
+    // Update hue thumb on the outer ring (radius ~ 74)
+    if (hueThumb) {
+      const ringR = 74;
+      const hx = cx + Math.cos(angleRad) * ringR;
+      const hy = cy + Math.sin(angleRad) * ringR;
+      hueThumb.style.left = `${hx}px`;
+      hueThumb.style.top = `${hy}px`;
+      hueThumb.style.backgroundColor = pureHex;
+    }
+
+    // Update reticle position on the inner saturation disc (radius 0..54)
+    if (reticle) {
+      const discR = Math.min(54, colorWheelSat * 54);
+      const rx = cx + Math.cos(angleRad) * discR;
+      const ry = cy + Math.sin(angleRad) * discR;
+      reticle.style.left = `${rx}px`;
+      reticle.style.top = `${ry}px`;
+      reticle.style.backgroundColor = hex;
+    }
+
+    // Update active quick swatch
+    quickSwatches.forEach(sw => {
+      if (sw.dataset.color.toLowerCase() === hex.toLowerCase()) {
+        sw.classList.add('active');
+      } else {
+        sw.classList.remove('active');
+      }
+    });
+
+    updateStrokePreview();
+
+    // If elements are selected, recolor them instantly!
+    if (selectedElements.length > 0) {
+      selectedElements.forEach(el => {
+        el.color = hex;
+      });
+      render();
+      scheduleAutoSave();
+      commitLocalAction();
+      broadcastBoardSync();
+    }
+  }
+
+  // Pointer drag on Wheel Canvas (Outer pure ring vs inner saturation disc)
+  let isDraggingWheel = false;
+  let activeWheelZone = null;
+
+  function handleWheelPointer(e) {
+    const rect = wheelCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+    const canvasX = x * scaleX;
+    const canvasY = y * scaleY;
+
+    const dx = canvasX - cx;
+    const dy = canvasY - cy;
+    const dist = Math.hypot(dx, dy);
+    const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+
+    if (!activeWheelZone) {
+      activeWheelZone = dist >= 57 ? 'ring' : 'disc';
+    }
+
+    colorWheelHue = angle;
+
+    if (activeWheelZone === 'ring') {
+      // Outer Pure Hue Ring: intense, 100% saturation!
+      colorWheelSat = 1.0;
+      if (colorWheelVal < 0.4) {
+        colorWheelVal = 1.0;
+      }
+    } else {
+      // Inner Disc: adjustable saturation & nuances
+      colorWheelSat = Math.min(1.0, Math.max(0, dist / 54));
+      if (colorWheelVal < 0.2) {
+        colorWheelVal = 1.0;
+      }
+    }
+
+    const rgb = hsvToRgb(colorWheelHue, colorWheelSat, colorWheelVal);
+    const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+    applyColorState(hex, true);
+  }
+
+  wheelCanvas.addEventListener('pointerdown', (e) => {
+    isDraggingWheel = true;
+    activeWheelZone = null;
+    if (wheelCanvas.setPointerCapture) {
+      try { wheelCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    handleWheelPointer(e);
+  });
+
+  wheelCanvas.addEventListener('pointermove', (e) => {
+    if (!isDraggingWheel) return;
+    handleWheelPointer(e);
+  });
+
+  const stopWheelDrag = (e) => {
+    if (isDraggingWheel) {
+      isDraggingWheel = false;
+      activeWheelZone = null;
+      if (wheelCanvas.releasePointerCapture) {
+        try { wheelCanvas.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+  };
+  wheelCanvas.addEventListener('pointerup', stopWheelDrag);
+  wheelCanvas.addEventListener('pointercancel', stopWheelDrag);
+
+  // Brightness slider
+  if (brightnessSlider) {
+    brightnessSlider.addEventListener('input', () => {
+      const pct = parseFloat(brightnessSlider.value);
+      colorWheelVal = pct / 100;
+      if (brightnessLabel) brightnessLabel.textContent = `${Math.round(pct)}%`;
+      const rgb = hsvToRgb(colorWheelHue, colorWheelSat, colorWheelVal);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+      applyColorState(hex, false);
+      if (hexInput) hexInput.value = hex.toUpperCase();
+    });
+  }
+
+  // Hex input
+  if (hexInput) {
+    hexInput.addEventListener('input', () => {
+      let val = hexInput.value.trim();
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+        syncFromHex(val, false);
+      }
+    });
+  }
+
+  // Quick swatches
+  quickSwatches.forEach(sw => {
+    sw.addEventListener('click', (e) => {
+      e.stopPropagation();
+      syncFromHex(sw.dataset.color, true);
+    });
+  });
+
+  // EyeDropper API (Chrome/Edge desktop)
+  if (btnEyeDropper) {
+    if (window.EyeDropper) {
+      btnEyeDropper.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          const eyeDropper = new window.EyeDropper();
+          const result = await eyeDropper.open();
+          if (result && result.sRGBHex) {
+            syncFromHex(result.sRGBHex, true);
+          }
+        } catch (err) {}
+      });
+    } else {
+      btnEyeDropper.style.display = 'none';
+    }
+  }
+
+  // Popover positioning & toggle (Responsive clamping against viewport height)
+  function updateColorPopoverPosition() {
+    if (!btnColorWheelMenu || !colorWheelPopover) return;
+    const btnRect = btnColorWheelMenu.getBoundingClientRect();
+    const workspace = document.querySelector('.workspace') || document.body;
+    const wsRect = workspace.getBoundingClientRect();
+
+    const popoverH = colorWheelPopover.offsetHeight || 330;
+    const idealTop = btnRect.top - wsRect.top - 14;
+    const maxTop = window.innerHeight - wsRect.top - popoverH - 12;
+    const topPos = Math.max(8, Math.min(idealTop, maxTop));
+    const leftPos = btnRect.right - wsRect.left + 8;
+
+    colorWheelPopover.style.top = `${topPos}px`;
+    colorWheelPopover.style.left = `${leftPos}px`;
+
+    // Point the arrow directly at the trigger button center
+    const btnCenterY = btnRect.top + btnRect.height / 2;
+    const popoverTopY = wsRect.top + topPos;
+    const arrowTop = Math.max(12, Math.min(popoverH - 18, btnCenterY - popoverTopY));
+    colorWheelPopover.style.setProperty('--arrow-top', `${arrowTop}px`);
+  }
+
+  window.addEventListener('resize', () => {
+    if (colorWheelPopover && colorWheelPopover.style.display === 'flex') {
+      updateColorPopoverPosition();
+    }
+  });
+
+  if (btnColorWheelMenu) {
+    btnColorWheelMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = colorWheelPopover.style.display === 'flex';
+      if (isOpen) {
+        colorWheelPopover.style.display = 'none';
+        btnColorWheelMenu.classList.remove('open');
+      } else {
+        const strokePop = document.getElementById('strokeMiniPopover');
+        if (strokePop) strokePop.style.display = 'none';
+        const strokeBtn = document.getElementById('btnStrokeMenu');
+        if (strokeBtn) strokeBtn.classList.remove('open');
+
+        colorWheelPopover.style.display = 'flex';
+        updateColorPopoverPosition();
+        btnColorWheelMenu.classList.add('open');
+      }
+    });
+  }
+
+  if (colorWheelPopover) {
+    colorWheelPopover.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  document.addEventListener('click', (e) => {
+    if (colorWheelPopover && colorWheelPopover.style.display === 'flex') {
+      if (!colorWheelPopover.contains(e.target) && !btnColorWheelMenu?.contains(e.target)) {
+        colorWheelPopover.style.display = 'none';
+        if (btnColorWheelMenu) btnColorWheelMenu.classList.remove('open');
+      }
+    }
+  });
+
+  // Initialize with current color
+  syncFromHex(currentColor || '#1e293b', true);
+}
+
+// ==================== Laser Tool with Fading Trail ====================
+let localLaserTrail = [];
+const peerLaserTrails = new Map();
+let laserRenderLoopActive = false;
+let lastLaserBroadcastTime = 0;
+
+function addLaserPoint(pt, isLocal = true, clientId = null) {
+  const now = Date.now();
+  const trail = isLocal ? localLaserTrail : (peerLaserTrails.get(clientId) || []);
+
+  // Interpolate intermediate points if moving fast to eliminate gaps between points
+  if (trail.length > 0) {
+    const last = trail[trail.length - 1];
+    const dist = Math.hypot(pt.x - last.x, pt.y - last.y);
+    const maxStep = Math.max(3.0, 5.0 / zoom);
+    if (dist > maxStep && dist < 350) {
+      const steps = Math.min(8, Math.floor(dist / maxStep));
+      for (let s = 1; s < steps; s++) {
+        const frac = s / steps;
+        trail.push({
+          x: last.x + (pt.x - last.x) * frac,
+          y: last.y + (pt.y - last.y) * frac,
+          time: last.time + (now - last.time) * frac
+        });
+      }
+    }
+  }
+
+  if (isLocal) {
+    localLaserTrail.push({ x: pt.x, y: pt.y, time: now });
+    broadcastLaserPoint(pt.x, pt.y);
+  } else if (clientId) {
+    if (!peerLaserTrails.has(clientId)) {
+      peerLaserTrails.set(clientId, []);
+    }
+    peerLaserTrails.get(clientId).push({ x: pt.x, y: pt.y, time: now });
+  }
+
+  if (!laserRenderLoopActive) {
+    laserRenderLoopActive = true;
+    requestAnimationFrame(updateLaserFrame);
+  }
+}
+
+function updateLaserFrame() {
+  const now = Date.now();
+  const maxAge = 1100;
+
+  localLaserTrail = localLaserTrail.filter(p => now - p.time < maxAge);
+
+  peerLaserTrails.forEach((trail, cid) => {
+    const valid = trail.filter(p => now - p.time < maxAge);
+    if (valid.length === 0) {
+      peerLaserTrails.delete(cid);
+    } else {
+      peerLaserTrails.set(cid, valid);
+    }
+  });
+
+  requestRenderOverlay();
+
+  if (localLaserTrail.length > 0 || peerLaserTrails.size > 0) {
+    requestAnimationFrame(updateLaserFrame);
+  } else {
+    laserRenderLoopActive = false;
+  }
+}
+
+function broadcastLaserPoint(x, y) {
+  const now = Date.now();
+  if (now - lastLaserBroadcastTime > 25) {
+    lastLaserBroadcastTime = now;
+    sendWsMessage({
+      type: 'laser_point',
+      x: Math.round(x * 10) / 10,
+      y: Math.round(y * 10) / 10
+    });
+  }
+}
+
+function drawLaserTrail(context, trail, color = '#ef4444') {
+  if (!trail || trail.length < 2) return;
+  const now = Date.now();
+  const maxAge = 1100;
+
+  const pts = trail.filter(p => now - p.time < maxAge);
+  const n = pts.length;
+  if (n < 2) return;
+
+  context.save();
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+
+  // Smooth quadratic curves through midpoints from tail to head
+  for (let i = 0; i < n - 1; i++) {
+    const pPrev = i > 0 ? pts[i - 1] : pts[0];
+    const pCurr = pts[i];
+    const pNext = pts[i + 1];
+
+    const age = now - pNext.time;
+    if (age >= maxAge) continue;
+    const life = Math.max(0, 1 - age / maxAge);
+    const alpha = life * life;
+    const t = (i + 1) / n;
+
+    const m1 = { x: (pPrev.x + pCurr.x) / 2, y: (pPrev.y + pCurr.y) / 2 };
+    const m2 = { x: (pCurr.x + pNext.x) / 2, y: (pCurr.y + pNext.y) / 2 };
+
+    const outerWidth = Math.max(1.2, (2.2 + 8.5 * t) / zoom);
+    const innerWidth = Math.max(0.8, (1.2 + 4.2 * t) / zoom);
+
+    // 1. Soft Outer Red Halo
+    context.strokeStyle = `rgba(239, 68, 68, ${alpha * 0.38})`;
+    context.lineWidth = outerWidth;
+    context.beginPath();
+    context.moveTo(m1.x, m1.y);
+    context.quadraticCurveTo(pCurr.x, pCurr.y, m2.x, m2.y);
+    context.stroke();
+
+    // 2. Solid Intense Red Core (Preenchido com vermelho vivo, sem branco)
+    context.strokeStyle = `rgba(239, 68, 68, ${alpha * 0.98})`;
+    context.lineWidth = innerWidth;
+    context.beginPath();
+    context.moveTo(m1.x, m1.y);
+    context.quadraticCurveTo(pCurr.x, pCurr.y, m2.x, m2.y);
+    context.stroke();
+  }
+
+  // Laser tip: glowing intense red radial bloom + solid red core
+  const tip = pts[n - 1];
+  const tipAge = now - tip.time;
+  if (tipAge < maxAge) {
+    const tipLife = Math.max(0, 1 - tipAge / maxAge);
+    const bloomRadius = Math.max(6, 13 / zoom);
+
+    try {
+      const grad = context.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, bloomRadius);
+      grad.addColorStop(0, `rgba(239, 68, 68, ${tipLife})`);
+      grad.addColorStop(0.45, `rgba(239, 68, 68, ${tipLife * 0.75})`);
+      grad.addColorStop(1, `rgba(239, 68, 68, 0)`);
+
+      context.fillStyle = grad;
+      context.beginPath();
+      context.arc(tip.x, tip.y, bloomRadius, 0, Math.PI * 2);
+      context.fill();
+    } catch (e) {}
+
+    context.fillStyle = '#ef4444';
+    context.beginPath();
+    context.arc(tip.x, tip.y, Math.max(2.5, 4.0 / zoom), 0, Math.PI * 2);
+    context.fill();
+  }
+
+  context.restore();
+}
+
+// ==================== Smart Shapes (Draw and Hold) ====================
+let smartShapeHoldTimer = null;
+let smartShapeAnchor = null;
+
+function clearSmartShapeTimer() {
+  if (smartShapeHoldTimer) {
+    clearTimeout(smartShapeHoldTimer);
+    smartShapeHoldTimer = null;
+  }
+  smartShapeAnchor = null;
+}
+
+function checkSmartShapeHold(pt) {
+  if (!isDrawing || !currentPath || currentPath.type !== 'path') {
+    clearSmartShapeTimer();
+    return;
+  }
+  const pts = currentPath.points;
+  if (!pts || pts.length < 8) {
+    clearSmartShapeTimer();
+    return;
+  }
+
+  if (!smartShapeAnchor) {
+    smartShapeAnchor = { x: pt.x, y: pt.y };
+    smartShapeHoldTimer = setTimeout(() => {
+      tryMorphToSmartShape();
+    }, 450);
+  } else {
+    const dist = Math.hypot(pt.x - smartShapeAnchor.x, pt.y - smartShapeAnchor.y);
+    if (dist > 8) {
+      // User is actively moving/drawing new strokes: reset anchor and restart hold countdown
+      smartShapeAnchor = { x: pt.x, y: pt.y };
+      if (smartShapeHoldTimer) clearTimeout(smartShapeHoldTimer);
+      smartShapeHoldTimer = setTimeout(() => {
+        tryMorphToSmartShape();
+      }, 450);
+    }
+  }
+}
+
+function tryMorphToSmartShape() {
+  if (!isDrawing || !currentPath || currentPath.type !== 'path') return;
+  const pts = currentPath.points;
+  if (pts.length < 8) return;
+
+  const shape = detectGeometricShape(pts, currentPath.color, currentPath.size);
+  if (shape) {
+    shape.isSmartShape = true;
+    currentPath = shape;
+    requestRenderOverlay();
+    showToast(`Forma inteligente: ${shape.shapeLabel || 'Geométrica'}`);
+  }
+}
+
+function detectGeometricShape(pts, color, size) {
+  const n = pts.length;
+  const p0 = pts[0];
+  const pN = pts[n - 1];
+
+  let totalLen = 0;
+  for (let i = 0; i < n - 1; i++) {
+    totalLen += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+  }
+  if (totalLen < 25) return null;
+
+  const chord = Math.hypot(pN.x - p0.x, pN.y - p0.y);
+  const linearity = chord / totalLen;
+
+  // 1. Straight Line
+  if (linearity >= 0.88 && chord >= 25) {
+    let x2 = pN.x;
+    let y2 = pN.y;
+    const angle = Math.atan2(y2 - p0.y, x2 - p0.x);
+    const snapAngles = [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4, Math.PI, -Math.PI / 4, -Math.PI / 2, -3 * Math.PI / 4, -Math.PI];
+    for (const snap of snapAngles) {
+      if (Math.abs(angle - snap) < 0.12) {
+        x2 = p0.x + chord * Math.cos(snap);
+        y2 = p0.y + chord * Math.sin(snap);
+        break;
+      }
+    }
+    return {
+      type: 'line',
+      shapeLabel: 'Reta',
+      color,
+      size,
+      x1: Math.round(p0.x * 10) / 10,
+      y1: Math.round(p0.y * 10) / 10,
+      x2: Math.round(x2 * 10) / 10,
+      y2: Math.round(y2 * 10) / 10
+    };
+  }
+
+  // 2. Closed Shapes: Circle/Ellipse, Triangle or Rectangle
+  if (chord / totalLen < 0.35 || chord < 35) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const w = maxX - minX;
+    const h = maxY - minY;
+    if (w < 20 || h < 20) return null;
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const rx = w / 2;
+    const ry = h / 2;
+
+    // A. Shoelace polygon area & bounding box fill ratio
+    let polyArea = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      polyArea += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+    }
+    polyArea = Math.abs(polyArea) / 2;
+    const bboxArea = w * h;
+    const fillRatio = bboxArea > 0 ? (polyArea / bboxArea) : 0;
+
+    // B. Corner detection via Douglas-Peucker line simplification
+    const diag = Math.hypot(w, h);
+    const simplified = simplifyPolyline(pts, diag * 0.05);
+    const uniqueCorners = simplified.filter((p, idx) => {
+      if (idx === 0) return true;
+      return Math.hypot(p.x - simplified[0].x, p.y - simplified[0].y) > diag * 0.08;
+    });
+
+    // C. Radial distance analysis from center
+    const rads = [];
+    let radSum = 0;
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      const dx = (p.x - cx) / rx;
+      const dy = (p.y - cy) / ry;
+      const r = Math.hypot(dx, dy);
+      rads.push(r);
+      radSum += r;
+    }
+    const minR = Math.min(...rads);
+    const maxR = Math.max(...rads);
+    const radRatio = maxR > 0 ? (minR / maxR) : 1;
+    const meanRad = radSum / n;
+    let varSum = 0;
+    for (let i = 0; i < n; i++) {
+      varSum += Math.pow(rads[i] - meanRad, 2);
+    }
+    const radStdDev = Math.sqrt(varSum / n);
+
+    // 1. Triangle Detection Check
+    // Triangles have 3 corners or low fill ratio (theoretical max is 0.50, hand-drawn up to 0.60)
+    if (uniqueCorners.length === 3 || (fillRatio >= 0.18 && fillRatio <= 0.60 && radStdDev > 0.14)) {
+      let triCorners = [];
+      if (uniqueCorners.length === 3) {
+        triCorners = [uniqueCorners[0], uniqueCorners[1], uniqueCorners[2]];
+      } else if (uniqueCorners.length === 4) {
+        // Drop the point that reduces area the least
+        let maxA = -1;
+        let bestSet = null;
+        for (let skip = 0; skip < 4; skip++) {
+          const cand = uniqueCorners.filter((_, idx) => idx !== skip);
+          const a = 0.5 * Math.abs(cand[0].x * (cand[1].y - cand[2].y) + cand[1].x * (cand[2].y - cand[0].y) + cand[2].x * (cand[0].y - cand[1].y));
+          if (a > maxA) {
+            maxA = a;
+            bestSet = cand;
+          }
+        }
+        triCorners = bestSet || uniqueCorners.slice(0, 3);
+      } else {
+        // Fallback: 3 extreme corners
+        triCorners = [
+          { x: cx, y: minY },
+          { x: minX, y: maxY },
+          { x: maxX, y: maxY }
+        ];
+      }
+
+      // Snapping: snap nearly horizontal edges to horizontal, nearly vertical to vertical
+      for (let i = 0; i < 3; i++) {
+        const next = (i + 1) % 3;
+        if (Math.abs(triCorners[i].y - triCorners[next].y) < h * 0.12) {
+          const midY = (triCorners[i].y + triCorners[next].y) / 2;
+          triCorners[i].y = midY;
+          triCorners[next].y = midY;
+        }
+        if (Math.abs(triCorners[i].x - triCorners[next].x) < w * 0.12) {
+          const midX = (triCorners[i].x + triCorners[next].x) / 2;
+          triCorners[i].x = midX;
+          triCorners[next].x = midX;
+        }
+      }
+
+      return {
+        type: 'triangle',
+        shapeLabel: 'Triângulo',
+        color,
+        size,
+        x1: minX,
+        y1: minY,
+        x2: maxX,
+        y2: maxY,
+        points: triCorners.map(p => ({
+          x: Math.round(p.x * 10) / 10,
+          y: Math.round(p.y * 10) / 10
+        }))
+      };
+    }
+
+    // 2. Square & Rectangle Detection Check
+    // Fundamentally distinct from circles:
+    // - Theoretical max area of circle is pi/4 ≈ 0.785. A square fills 0.83 to 0.98.
+    // - Squares have 4 corners, whereas circles continuously curve (8-14 DP vertices).
+    // - In a square, corners are sqrt(2) ≈ 1.41x further from center than sides (radRatio <= 0.77, radStdDev >= 0.09).
+    const isSquareOrRect = (fillRatio >= 0.83) ||
+                           (uniqueCorners.length === 4) ||
+                           (radRatio <= 0.77 && radStdDev >= 0.09);
+
+    if (isSquareOrRect) {
+      const aspect = w / h;
+      let rx1 = minX, ry1 = minY, rx2 = maxX, ry2 = maxY;
+      const isSquare = aspect >= 0.80 && aspect <= 1.25;
+      if (isSquare) {
+        const side = (w + h) / 2;
+        rx1 = cx - side / 2;
+        ry1 = cy - side / 2;
+        rx2 = cx + side / 2;
+        ry2 = cy + side / 2;
+      }
+      return {
+        type: 'rect',
+        shapeLabel: isSquare ? 'Quadrado' : 'Retângulo',
+        color,
+        size,
+        x1: Math.round(rx1 * 10) / 10,
+        y1: Math.round(ry1 * 10) / 10,
+        x2: Math.round(rx2 * 10) / 10,
+        y2: Math.round(ry2 * 10) / 10
+      };
+    }
+
+    // 3. Circle / Ellipse Check
+    // If it is not a triangle and not a square/rect, it is a smooth closed curve (circle or ellipse)
+    const aspect = w / h;
+    let finalX1 = minX, finalY1 = minY, finalX2 = maxX, finalY2 = maxY;
+    const isTrueCircle = aspect >= 0.80 && aspect <= 1.25;
+    if (isTrueCircle) {
+      const d = (w + h) / 2;
+      finalX1 = cx - d / 2;
+      finalY1 = cy - d / 2;
+      finalX2 = cx + d / 2;
+      finalY2 = cy + d / 2;
+    }
+    return {
+      type: 'circle',
+      shapeLabel: isTrueCircle ? 'Círculo' : 'Elipse',
+      color,
+      size,
+      x1: Math.round(finalX1 * 10) / 10,
+      y1: Math.round(finalY1 * 10) / 10,
+      x2: Math.round(finalX2 * 10) / 10,
+      y2: Math.round(finalY2 * 10) / 10
+    };
+  }
+
+  return null;
 }
 
 // ==================== Dropdown & Gallery Builder ====================
@@ -2218,63 +3401,53 @@ async function loadTemplateOptions() {
   }
 }
 
-// ALWAYS adds the diagram to the board WITHOUT removing existing items
+// ALWAYS adds the diagram to the board WITHOUT removing existing items, centered on user's current view
 function loadTemplateToCanvas(url) {
   const img = new Image();
   img.crossOrigin = 'Anonymous';
   img.onload = () => {
     recordState(); // Save state for undo
 
-    // Determine comfortable size for screen
-    let maxW = Math.max(600, width * 0.85);
-    let maxH = Math.max(450, height * 0.85);
-    let w = img.width;
-    let h = img.height;
+    // Calculate center of the current screen view in virtual canvas coordinates
+    const center = screenToCanvas(width / 2, height / 2);
 
-    const scale = Math.min(maxW / w, maxH / h, 1.0);
-    w = Math.round(w * scale);
-    h = Math.round(h * scale);
+    // Determine comfortable size based on current zoom so it fits nicely on screen
+    const maxViewW = Math.max(300, (width * 0.75) / zoom);
+    const maxViewH = Math.max(220, (height * 0.75) / zoom);
+    const imgAspect = (img.width || 1) / (img.height || 1);
 
-    let posX, posY;
-
-    if (elements.length === 0) {
-      // If canvas is empty, place right in the center
-      const center = screenToCanvas(width / 2, height / 2);
-      posX = Math.round(center.x - w / 2);
-      posY = Math.round(center.y - h / 2);
-    } else {
-      // If canvas already has items, place to the right of existing elements
-      const bounds = getElementsBounds();
-      if (bounds) {
-        posX = Math.round(bounds.maxX + 80); // 80px gap to the right
-        posY = Math.round(bounds.minY);       // Align with top of existing elements
-      } else {
-        const center = screenToCanvas(width / 2, height / 2);
-        posX = Math.round(center.x - w / 2);
-        posY = Math.round(center.y - h / 2);
-      }
+    let finalW = Math.min(img.width, maxViewW);
+    let finalH = finalW / imgAspect;
+    if (finalH > maxViewH) {
+      finalH = maxViewH;
+      finalW = finalH * imgAspect;
     }
+    finalW = Math.round(finalW);
+    finalH = Math.round(finalH);
+
+    const posX = Math.round(center.x - finalW / 2);
+    const posY = Math.round(center.y - finalH / 2);
 
     const el = {
+      id: (typeof generateId === 'function' ? generateId() : 'img-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)),
       type: 'image',
       src: url,
       x: posX,
       y: posY,
-      width: w,
-      height: h,
+      width: finalW,
+      height: finalH,
       imgObj: img
     };
 
+    invalidateElementBBox(el);
     elements.push(el);
     selectedElements = [el];
     selectedElement = el;
 
-    // Center and fit all elements on screen so user sees both previous work and the new diagram!
-    fitToScreen();
+    render();
     scheduleAutoSave();
     broadcastBoardSync();
-    showToast('Novo diagrama adicionado ao quadro! O conteúdo anterior foi preservado.');
-    showSyncBadge('Novo diagrama adicionado!', 'synced');
+    showToast('Diagrama adicionado ao centro da tela!');
   };
   img.src = url;
 }
@@ -2378,15 +3551,8 @@ function setupEventListeners() {
     });
   });
 
-  // Color selection
-  document.querySelectorAll('.color-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-      dot.classList.add('active');
-      currentColor = dot.dataset.color;
-      updateStrokePreview();
-    });
-  });
+  // Color wheel & full gradient selection
+  setupColorWheel();
 
   // Stroke size slider & quick preset chips
   if (strokeSizeSlider) {
@@ -2844,6 +4010,22 @@ function handlePointerDown(e) {
     }
 
     if (clickedInsideSelection) {
+      if (e.altKey) {
+        // Alt + Drag: Instant Duplication!
+        recordState();
+        const clones = selectedElements.map(el => {
+          const copy = JSON.parse(JSON.stringify(el));
+          copy.id = (typeof generateId === 'function' ? generateId() : 'el-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7));
+          delete copy._bbox;
+          invalidateElementBBox(copy);
+          return copy;
+        });
+        clones.forEach(c => elements.push(c));
+        rehydrateImages();
+        selectedElements = clones;
+        selectedElement = clones.length === 1 ? clones[0] : null;
+        showToast('Elemento duplicado com Alt+Arrastar');
+      }
       startSelectionDrag(pt);
       render();
       return;
@@ -2870,6 +4052,21 @@ function handlePointerDown(e) {
         selectedElements = [hitEl];
       }
       selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+
+      if (e.altKey) {
+        // Alt + Drag: Instant Duplication of clicked element!
+        recordState();
+        const copy = JSON.parse(JSON.stringify(hitEl));
+        copy.id = (typeof generateId === 'function' ? generateId() : 'el-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7));
+        delete copy._bbox;
+        invalidateElementBBox(copy);
+        elements.push(copy);
+        rehydrateImages();
+        selectedElements = [copy];
+        selectedElement = copy;
+        showToast('Elemento duplicado com Alt+Arrastar');
+      }
+
       startSelectionDrag(pt);
       render();
       return;
@@ -2884,6 +4081,12 @@ function handlePointerDown(e) {
     areaSelectStartPt = { x: pt.x, y: pt.y };
     areaSelectCurrentPt = { x: pt.x, y: pt.y };
     render();
+    return;
+  }
+
+  if (currentTool === 'laser') {
+    isDrawing = true;
+    addLaserPoint(pt, true);
     return;
   }
 
@@ -2930,6 +4133,7 @@ function handlePointerDown(e) {
 
   // Draw tools: pen, highlighter, line, arrow, rect, mux, alu
   isDrawing = true;
+  clearSmartShapeTimer();
   drawStartState = serializeBoardState();
 
   if (currentTool === 'pen' || currentTool === 'highlighter') {
@@ -2980,7 +4184,7 @@ function handlePointerMove(e) {
       panY = originY - (originY - initialPinchPan.y) * (newZoom / initialPinchZoom) + (currentCenter.y - initialPinchCenter.y);
       zoom = newZoom;
 
-      render();
+      requestRenderAll();
       updateEraserCursorSize();
     }
     return;
@@ -2994,7 +4198,7 @@ function handlePointerMove(e) {
     panX = e.clientX - startPanX;
     panY = e.clientY - startPanY;
     hideEraserCursor();
-    render();
+    requestRenderAll();
     return;
   }
 
@@ -3022,7 +4226,7 @@ function handlePointerMove(e) {
   // Active Area Selection Marquee
   if (isAreaSelecting) {
     areaSelectCurrentPt = { x: pt.x, y: pt.y };
-    render();
+    requestRenderOverlay();
     return;
   }
 
@@ -3078,6 +4282,21 @@ function handlePointerMove(e) {
     canvas.style.cursor = '';
   }
 
+  if (currentTool === 'laser') {
+    if (isDrawing) {
+      const subEvents = (e.getCoalescedEvents && typeof e.getCoalescedEvents === 'function')
+        ? e.getCoalescedEvents()
+        : [e];
+      for (const ev of subEvents) {
+        const subMouseX = ev.clientX - rect.left;
+        const subMouseY = ev.clientY - rect.top;
+        const rawPt = screenToCanvas(subMouseX, subMouseY);
+        addLaserPoint(rawPt, true);
+      }
+    }
+    return;
+  }
+
   if (!isDrawing) return;
 
   if (currentTool === 'eraser') {
@@ -3089,13 +4308,17 @@ function handlePointerMove(e) {
       const radius = getEraserRadius();
       if (eraseCircleStep(pt.x, pt.y, radius)) {
         eraseModified = true;
-        render();
+        requestRenderAll();
       }
     }
     return;
   }
 
   if (currentPath) {
+    if (currentPath.isSmartShape) {
+      requestRenderOverlay();
+      return;
+    }
     if (currentPath.type === 'path') {
       const subEvents = (e.getCoalescedEvents && typeof e.getCoalescedEvents === 'function')
         ? e.getCoalescedEvents()
@@ -3115,15 +4338,23 @@ function handlePointerMove(e) {
         }
       }
       broadcastLiveStroke(currentPath);
+      checkSmartShapeHold(pt);
     } else {
       currentPath.x2 = pt.x;
       currentPath.y2 = pt.y;
     }
-    render();
+    requestRenderOverlay();
   }
 }
 
 function handlePointerUp(e) {
+  clearSmartShapeTimer();
+
+  if (currentTool === 'laser') {
+    isDrawing = false;
+    return;
+  }
+
   if (e && e.pointerId !== undefined) {
     activePointers.delete(e.pointerId);
     if (canvas.releasePointerCapture) {
@@ -3272,6 +4503,11 @@ function handlePointerUp(e) {
           drawStartState = null;
         }
         const createdEl = currentPath;
+        if (!createdEl.id) {
+          createdEl.id = (typeof generateId === 'function' ? generateId() : 'el-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7));
+        }
+        delete createdEl.isSmartShape;
+        delete createdEl.shapeLabel;
         elements.push(createdEl);
         currentPath = null;
         render();
@@ -3321,7 +4557,7 @@ function handleWheel(e) {
     panY = mouseY - (mouseY - panY) * (newZoom / zoom);
     zoom = newZoom;
 
-    render();
+    requestRenderAll();
     updateEraserCursorSize();
   }
 }
@@ -3335,7 +4571,7 @@ function applyZoom(factor) {
   panY = centerY - (centerY - panY) * (newZoom / zoom);
   zoom = newZoom;
 
-  render();
+  requestRenderAll();
   updateEraserCursorSize();
 }
 
@@ -3401,19 +4637,13 @@ function clipPathByCircle(pathEl, cx, cy, radius) {
     return d < radius ? [] : [pathEl];
   }
 
-  // Fast bounding box rejection check
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (let i = 0; i < pathEl.points.length; i++) {
-    const p = pathEl.points[i];
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y > maxY) maxY = p.y;
-  }
-  const pad = (pathEl.size || 2);
-  if (cx + radius < minX - pad || cx - radius > maxX + pad ||
-      cy + radius < minY - pad || cy - radius > maxY + pad) {
-    return [pathEl];
+  // Fast bounding box rejection check (O(1) via cached bbox)
+  const bbox = getCachedElementBBox(pathEl);
+  if (bbox) {
+    if (cx + radius < bbox.x || cx - radius > bbox.x + bbox.width ||
+        cy + radius < bbox.y || cy - radius > bbox.y + bbox.height) {
+      return [pathEl];
+    }
   }
 
   const resultPaths = [];
@@ -4100,6 +5330,9 @@ function exportLocalPNG() {
   expCtx.fillStyle = gridMode === 'ruled' ? '#fdfbf7' : '#ffffff';
   expCtx.fillRect(0, 0, exp.width, exp.height);
   expCtx.drawImage(canvas, 0, 0);
+  if (overlayCanvas) {
+    expCtx.drawImage(overlayCanvas, 0, 0);
+  }
 
   const link = document.createElement('a');
   link.download = `whiteboard_tela_${Date.now()}.png`;
@@ -5017,7 +6250,25 @@ function setupHotkeys() {
       } else if (e.key === 'y' || e.key === 'Y') {
         e.preventDefault();
         redo();
+      } else if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        duplicateSelection(25);
+      } else if (e.key === ']') {
+        e.preventDefault();
+        bringToFront();
+      } else if (e.key === '[') {
+        e.preventDefault();
+        sendToBack();
       }
+      return;
+    }
+
+    if (e.key === ']') {
+      bringForward();
+      return;
+    }
+    if (e.key === '[') {
+      sendBackward();
       return;
     }
 
@@ -5072,7 +6323,8 @@ function setupHotkeys() {
       't': 'text',
       'e': 'eraser',
       's': 'select',
-      'v': 'select'
+      'v': 'select',
+      'k': 'laser'
     };
 
     if (toolMap[key]) {
@@ -5207,7 +6459,7 @@ function handleWsMessage(msg) {
       if (msg.left) {
         peerCursors.delete(msg.left);
         peerLiveStrokes.delete(msg.left);
-        render();
+        requestRenderOverlay();
       }
       break;
     }
@@ -5222,14 +6474,14 @@ function handleWsMessage(msg) {
         tool: msg.tool || 'pen',
         lastSeen: Date.now()
       });
-      render();
+      requestRenderOverlay();
       break;
     }
 
     case 'cursor_remove': {
       peerCursors.delete(msg.clientId);
       peerLiveStrokes.delete(msg.clientId);
-      render();
+      requestRenderOverlay();
       break;
     }
 
@@ -5242,7 +6494,13 @@ function handleWsMessage(msg) {
         size: msg.size || 2,
         points: msg.points || []
       });
-      render();
+      requestRenderOverlay();
+      break;
+    }
+
+    case 'laser_point': {
+      if (msg.clientId === wsClientId) return;
+      addLaserPoint({ x: msg.x, y: msg.y }, false, msg.clientId);
       break;
     }
 
@@ -5256,6 +6514,7 @@ function handleWsMessage(msg) {
       if (msg.clientId === wsClientId) return;
       peerLiveStrokes.delete(msg.clientId);
       if (msg.element) {
+        invalidateElementBBox(msg.element);
         receiveBoardChanges([{ id: msg.element.id, after: msg.element }]);
         if (msg.element.type === 'image') {
           rehydrateImages();
@@ -5278,9 +6537,8 @@ function handleWsMessage(msg) {
       }
 
       if (Array.isArray(msg.elements)) {
-        receiveBoardChanges(boardChanges(JSON.parse(serializeBoardState()), msg.elements));
-        selectedElements = [];
-        selectedElement = null;
+        elements = msg.elements;
+        elements.forEach(invalidateElementBBox);
         rehydrateImages();
         render();
       }
@@ -5290,21 +6548,29 @@ function handleWsMessage(msg) {
     case 'board_clear': {
       if (msg.clientId === wsClientId) return;
       peerLiveStrokes.clear();
-      receiveBoardChanges(boardChanges(JSON.parse(serializeBoardState()), []));
-      selectedElements = [];
+      elements = [];
       selectedElement = null;
+      selectedElements = [];
       render();
-      showToast('O quadro foi limpo por outro participante.');
       break;
     }
   }
 }
 
 // Broadcast throttle helpers
+let lastBroadcastCursorX = -99999;
+let lastBroadcastCursorY = -99999;
+
 function broadcastCursor(x, y) {
   const now = Date.now();
   if (now - lastCursorBroadcastTime > 35) {
+    const dx = x - lastBroadcastCursorX;
+    const dy = y - lastBroadcastCursorY;
+    if (dx * dx + dy * dy < 2.25) return;
+
     lastCursorBroadcastTime = now;
+    lastBroadcastCursorX = x;
+    lastBroadcastCursorY = y;
     sendWsMessage({
       type: 'cursor',
       x: Math.round(x * 10) / 10,
@@ -5318,7 +6584,7 @@ function broadcastCursor(x, y) {
 
 function broadcastLiveStroke(pathEl) {
   const now = Date.now();
-  if (now - lastStrokeBroadcastTime > 45) {
+  if (now - lastStrokeBroadcastTime > 35) {
     lastStrokeBroadcastTime = now;
     sendWsMessage({
       type: 'stroke_live',

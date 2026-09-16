@@ -1363,6 +1363,10 @@ try:
                     msg["clientId"] = client_id
                     await broadcast(msg, exclude=client_id)
 
+                elif msg_type == "laser_point":
+                    msg["clientId"] = client_id
+                    await broadcast(msg, exclude=client_id)
+
                 elif msg_type == "board_patch":
                     changes = apply_board_patch(msg.get('changes', []))
                     schedule_save_elements()
