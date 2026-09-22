@@ -2828,6 +2828,18 @@ kbd {
   border-color: #f59e0b;
 }
 
+.pipeline-action-btn.danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.pipeline-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
 .pipeline-action-btn.small {
   padding: 4px 8px;
   font-size: 11px;
@@ -3150,7 +3162,7 @@ kbd {
 }
 
 .action-col-header {
-  min-width: 80px;
+  min-width: 110px;
 }
 
 .cycle-col-header.current {
@@ -3170,6 +3182,17 @@ kbd {
   font-style: italic;
 }
 
+.inst-action-cell {
+  white-space: nowrap;
+}
+
+.matrix-actions-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
 .matrix-btn-bubble {
   background: rgba(245, 158, 11, 0.15);
   border: 1px solid rgba(245, 158, 11, 0.35);
@@ -3179,10 +3202,34 @@ kbd {
   padding: 2px 6px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .matrix-btn-bubble:hover {
   background: rgba(245, 158, 11, 0.3);
+}
+
+.matrix-btn-remove-bubble {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.matrix-btn-remove-bubble:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.matrix-btn-remove-bubble.small {
+  padding: 2px 5px;
+  font-size: 10px;
 }
 
 .matrix-stage-cell.current,
@@ -3324,6 +3371,21 @@ kbd {
   font-size: 12px;
   padding: 1px 6px;
   cursor: pointer;
+}
+
+.prog-btn-del.bubble {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 10px;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+.prog-btn-del.bubble:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+  border-color: #ef4444;
 }
 
 .prog-btn-del:hover {

@@ -539,11 +539,47 @@
   }
 
   function removeInstructionAt(index, notifyRemote = true) {
-    if (state.instructions.length <= 1) {
+    if (index < 0 || index >= state.instructions.length) return;
+    const target = state.instructions[index];
+    if (state.instructions.length <= 1 && !target.isBubble) {
       alert('O programa deve conter ao menos uma instrucao.');
       return;
     }
     state.instructions.splice(index, 1);
+    if (state.instructions.length === 0) {
+      loadScenario(state.scenarioId || 'raw_classic', notifyRemote);
+      return;
+    }
+    computeSchedule();
+    renderSimulatorUI();
+
+    if (notifyRemote) {
+      broadcastPipelineAction('update_program', {
+        instructions: state.instructions,
+        forwardingEnabled: state.forwardingEnabled
+      });
+    }
+  }
+
+  function removeLastBubble(notifyRemote = true) {
+    for (let i = state.instructions.length - 1; i >= 0; i--) {
+      if (state.instructions[i].isBubble) {
+        removeInstructionAt(i, notifyRemote);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function removeAllBubbles(notifyRemote = true) {
+    const originalCount = state.instructions.length;
+    const filtered = state.instructions.filter(i => !i.isBubble);
+    if (filtered.length === originalCount) return;
+    if (filtered.length === 0) {
+      loadScenario(state.scenarioId || 'raw_classic', notifyRemote);
+      return;
+    }
+    state.instructions = filtered;
     computeSchedule();
     renderSimulatorUI();
 
@@ -904,6 +940,10 @@
               <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <span>+ Inserir Bolha</span>
             </button>
+            <button id="btnPipelineRemoveBubble" class="pipeline-action-btn danger" title="Remover a ultima bolha inserida">
+              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <span>- Remover Bolha</span>
+            </button>
           </div>
         </div>
 
@@ -956,9 +996,14 @@
                 <span class="legend-badge wb">WB: Gravacao</span>
                 <span class="legend-badge stall">BOLHA / STALL</span>
               </span>
-              <button id="btnPipelineAutoResolve" class="pipeline-action-btn secondary small" title="Adiciona bolhas automaticamente nas posicoes necessarias">
-                Resolver Conflitos com Bolhas
-              </button>
+              <div class="matrix-controls-buttons">
+                <button id="btnPipelineAutoResolve" class="pipeline-action-btn secondary small" title="Adiciona bolhas automaticamente nas posicoes necessarias">
+                  Resolver Conflitos com Bolhas
+                </button>
+                <button id="btnPipelineClearAllBubbles" class="pipeline-action-btn secondary small" title="Remove todas as bolhas do programa">
+                  Limpar Todas as Bolhas
+                </button>
+              </div>
             </div>
             <div class="pipeline-matrix-scroller" id="pipelineMatrixContainer">
               <!-- Matriz dinamica -->
@@ -1126,11 +1171,30 @@
       });
     }
 
+    // Remover ultima bolha rapida
+    const btnRemoveBubble = document.getElementById('btnPipelineRemoveBubble');
+    if (btnRemoveBubble) {
+      btnRemoveBubble.addEventListener('click', () => {
+        const removed = removeLastBubble(true);
+        if (!removed) {
+          alert('Nao ha bolhas para remover no programa atual.');
+        }
+      });
+    }
+
     // Auto Resolver Bolhas
     const btnAutoResolve = document.getElementById('btnPipelineAutoResolve');
     if (btnAutoResolve) {
       btnAutoResolve.addEventListener('click', () => {
         autoResolveBubbles(true);
+      });
+    }
+
+    // Limpar Todas as Bolhas
+    const btnClearBubbles = document.getElementById('btnPipelineClearAllBubbles');
+    if (btnClearBubbles) {
+      btnClearBubbles.addEventListener('click', () => {
+        removeAllBubbles(true);
       });
     }
 
@@ -1251,6 +1315,21 @@
     if (curTxt) curTxt.textContent = state.currentCycle;
     if (totTxt) totTxt.textContent = `/ ${state.maxCycles}`;
 
+    // Atualiza estado dos botoes de remocao de bolha
+    const hasBubbles = state.instructions.some(i => i.isBubble);
+    const btnRemoveBubble = document.getElementById('btnPipelineRemoveBubble');
+    if (btnRemoveBubble) {
+      btnRemoveBubble.disabled = !hasBubbles;
+      btnRemoveBubble.style.opacity = hasBubbles ? '1' : '0.4';
+      btnRemoveBubble.style.cursor = hasBubbles ? 'pointer' : 'not-allowed';
+    }
+    const btnClearBubbles = document.getElementById('btnPipelineClearAllBubbles');
+    if (btnClearBubbles) {
+      btnClearBubbles.disabled = !hasBubbles;
+      btnClearBubbles.style.opacity = hasBubbles ? '1' : '0.4';
+      btnClearBubbles.style.cursor = hasBubbles ? 'pointer' : 'not-allowed';
+    }
+
     // 4. Banner de Diagnostico de Hazards
     renderHazardBanner();
 
@@ -1275,6 +1354,7 @@
     if (!banner) return;
 
     if (state.hazards.length === 0) {
+      const hasBubbles = state.instructions.some(i => i.isBubble);
       banner.className = 'pipeline-hazard-banner success';
       banner.innerHTML = `
         <div class="hazard-icon">
@@ -1282,9 +1362,20 @@
         </div>
         <div class="hazard-info">
           <strong>Nenhum Hazard Detectado!</strong>
-          <span>O programa executa com integridade de dados ${state.forwardingEnabled ? 'utilizando Adiantamento (Forwarding)' : 'atraves das bolhas inseridas'}.</span>
+          <span>O programa executa com integridade de dados ${state.forwardingEnabled ? 'utilizando Adiantamento (Forwarding)' : (hasBubbles ? 'atraves das bolhas inseridas' : 'sem necessidade de bolhas')}.</span>
         </div>
+        ${hasBubbles ? `
+        <div class="hazard-action">
+          <button id="btnBannerClearBubbles" class="pipeline-action-btn secondary small" title="Remover todas as bolhas para testar novamente">Remover Bolhas</button>
+        </div>
+        ` : ''}
       `;
+      const btnClear = document.getElementById('btnBannerClearBubbles');
+      if (btnClear) {
+        btnClear.addEventListener('click', () => {
+          removeAllBubbles(true);
+        });
+      }
     } else {
       const h = state.hazards[0];
       banner.className = 'pipeline-hazard-banner warning';
@@ -1416,10 +1507,22 @@
 
     for (let r = 0; r < numInsts; r++) {
       const s = state.schedule[r];
+      const isBubble = s.isBubble;
+      const prevIsBubble = r > 0 && state.instructions[r - 1] && state.instructions[r - 1].isBubble;
+
       html += `<tr>`;
-      html += `<td class="inst-name-cell ${s.isBubble ? 'bubble' : ''}">${formatInstructionText(s.instruction)}</td>`;
+      html += `<td class="inst-name-cell ${isBubble ? 'bubble' : ''}">${formatInstructionText(s.instruction)}</td>`;
       html += `<td class="inst-action-cell">
-        <button class="matrix-btn-bubble" data-row="${r}" title="Inserir bolha antes desta instrucao">+ Bolha</button>
+        <div class="matrix-actions-group">`;
+      if (isBubble) {
+        html += `<button class="matrix-btn-remove-bubble" data-idx="${s.instIndex}" title="Remover esta bolha">&times; Remover Bolha</button>`;
+      } else {
+        html += `<button class="matrix-btn-bubble" data-row="${r}" title="Inserir bolha antes desta instrucao">+ Bolha</button>`;
+        if (prevIsBubble) {
+          html += `<button class="matrix-btn-remove-bubble small" data-idx="${r - 1}" title="Remover a bolha que precede esta instrucao">- Bolha</button>`;
+        }
+      }
+      html += `</div>
       </td>`;
 
       for (let c = 1; c <= totalCols; c++) {
@@ -1448,6 +1551,14 @@
         insertBubbleAt(row, true);
       });
     });
+
+    // Conecta botoes de remover bolha na tabela
+    container.querySelectorAll('.matrix-btn-remove-bubble').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        removeInstructionAt(idx, true);
+      });
+    });
   }
 
   function renderProgramList() {
@@ -1465,8 +1576,12 @@
           <span class="inst-idx">${idx + 1}.</span>
           <span class="inst-code">${formatInstructionText(inst)}</span>
           <div class="item-actions">
-            <button class="prog-btn-bubble" data-idx="${idx}" title="Inserir bolha antes desta">+ Bolha</button>
-            <button class="prog-btn-del" data-idx="${idx}" title="Remover">&times;</button>
+            ${isBubble ? `
+              <button class="prog-btn-del bubble" data-idx="${idx}" title="Remover esta bolha">&times; Remover Bolha</button>
+            ` : `
+              <button class="prog-btn-bubble" data-idx="${idx}" title="Inserir bolha antes desta">+ Bolha</button>
+              <button class="prog-btn-del" data-idx="${idx}" title="Remover">&times;</button>
+            `}
           </div>
         </div>
       `;
@@ -1531,6 +1646,10 @@
     reset: resetSimulation,
     toggleForwarding: toggleForwarding,
     loadScenario: loadScenario,
+    insertBubbleAt: insertBubbleAt,
+    removeInstructionAt: removeInstructionAt,
+    removeLastBubble: removeLastBubble,
+    removeAllBubbles: removeAllBubbles,
     handleRemoteSync: handleRemotePipelineSync,
     getState: () => state
   };
