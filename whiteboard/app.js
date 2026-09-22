@@ -3738,6 +3738,16 @@ function setupEventListeners() {
   if (btnOpenGallery) btnOpenGallery.addEventListener('click', openGalleryModal);
   if (btnCloseGallery) btnCloseGallery.addEventListener('click', closeGalleryModal);
 
+  // Pipeline Simulator Button
+  const btnOpenPipeline = document.getElementById('btnOpenPipeline');
+  if (btnOpenPipeline) {
+    btnOpenPipeline.addEventListener('click', () => {
+      if (window.PipelineSimulator) {
+        window.PipelineSimulator.open();
+      }
+    });
+  }
+
   if (galleryModal) {
     galleryModal.addEventListener('click', (e) => {
       if (e.target === galleryModal) closeGalleryModal();
@@ -6637,6 +6647,10 @@ function handleWsMessage(msg) {
         hasSentInitialSync = true;
         broadcastBoardSync();
       }
+
+      if (msg.pipelineState && window.PipelineSimulator) {
+        window.PipelineSimulator.handleRemoteSync({ state: msg.pipelineState });
+      }
       break;
     }
 
@@ -6742,6 +6756,14 @@ function handleWsMessage(msg) {
       selectedElement = null;
       selectedElements = [];
       render();
+      break;
+    }
+
+    case 'pipeline_action': {
+      if (msg.clientId === wsClientId) return;
+      if (window.PipelineSimulator) {
+        window.PipelineSimulator.handleRemoteSync(msg);
+      }
       break;
     }
   }

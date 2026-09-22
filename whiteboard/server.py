@@ -406,6 +406,22 @@ current_board_elements = []
 connected_clients = {}  # clientId -> { "ws": WebSocket, "name": str, "color": str }
 ACTUAL_PORT = PORT
 
+# In-memory canonical state of pipeline simulator
+current_pipeline_state = {
+    "scenarioId": "raw_classic",
+    "instructions": [
+        {"id": "i1", "op": "SUB", "rd": "$2", "rs": "$1", "rt": "$3", "isBubble": False},
+        {"id": "i2", "op": "AND", "rd": "$12", "rs": "$2", "rt": "$5", "isBubble": False},
+        {"id": "i3", "op": "OR", "rd": "$13", "rs": "$6", "rt": "$2", "isBubble": False},
+        {"id": "i4", "op": "ADD", "rd": "$14", "rs": "$2", "rt": "$2", "isBubble": False},
+        {"id": "i5", "op": "SW", "rd": "$15", "rs": "$2", "offset": 100, "isBubble": False}
+    ],
+    "currentCycle": 0,
+    "forwardingEnabled": False,
+    "hazardMode": "manual",
+    "isPlaying": False
+}
+
 def load_metadata():
     """Load boards metadata or return default structure."""
     if os.path.exists(METADATA_FILE):
@@ -1296,6 +1312,7 @@ try:
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
+        global active_board_id
         await websocket.accept()
         client_id = str(uuid.uuid4())[:8]
         connected_clients[client_id] = {
@@ -1322,6 +1339,7 @@ try:
                 "boardsMeta": meta,
                 "gridType": active_grid,
                 "elements": current_board_elements,
+                "pipelineState": current_pipeline_state,
                 "userCount": len(connected_clients)
             }, ensure_ascii=False))
 
@@ -1429,10 +1447,18 @@ try:
                             })
                     await broadcast(msg, exclude=client_id)
 
+                elif msg_type == "pipeline_action":
+                    if "state" in msg and isinstance(msg["state"], dict):
+                        current_pipeline_state.clear()
+                        current_pipeline_state.update(msg["state"])
+                    msg["clientId"] = client_id
+                    await broadcast(msg, exclude=client_id)
+
         except WebSocketDisconnect:
             pass
-        except Exception:
-            pass
+        except Exception as err:
+            import traceback
+            traceback.print_exc()
         finally:
             if client_id in connected_clients:
                 del connected_clients[client_id]
