@@ -160,7 +160,41 @@ let hasSentInitialSync = false;
 
 // Static Curated Templates Catalog (Fallback guarantee!)
 const STATIC_TEMPLATES = [
-  // 0. Prova Real Oficial (UFSM)
+  // 0. Prova 2 (2026.1) - Pipeline, Forwarding, Desvios & VLIW (UFSM)
+  {
+    filename: "prova2_2026_pag_1_forwarding_unit.jpg",
+    title: "Prova 2 (2026.1) - Pág 1: Forwarding Unit em C & Datapath",
+    category: "Prova Real (UFSM)",
+    badge: "prova",
+    badgeText: "PROVA 2",
+    desc: "Questão 1 (4.0 pts). Implementação em C da lógica de detecção de dependência de dados nos estágios MEM/EX e WB/EX, com esquemático do Datapath completo e Forwarding Unit."
+  },
+  {
+    filename: "prova2_2026_pag_2_predicao_vliw.jpg",
+    title: "Prova 2 (2026.1) - Pág 2: Predição de Desvios & VLIW",
+    category: "Prova Real (UFSM)",
+    badge: "prova",
+    badgeText: "PROVA 2",
+    desc: "Questão 2 (1.5 pts V/F Monociclo vs Pipeline), Questão 3 (1.5 pts Preditor 1-bit e Bimodal 2-bit com tabela de acertos) e Questão 4 (3.0 pts MIPS VLIW com latência de uso)."
+  },
+  {
+    filename: "prova2_2026_pag_3_pipeline_bimodal_hazards.jpg",
+    title: "Prova 2 (2026.1) - Pág 3: Pipeline 5 Estágios & Tabela Espaço-Tempo",
+    category: "Prova Real (UFSM)",
+    badge: "prova",
+    badgeText: "PROVA 2",
+    desc: "Questão 1 (7.0 pts). Análise de Hazards RAW e WAR, erros de predição bimodal (100 iterações) e cronograma temporal com bolhas (IF, ID, EX, MEM, WB)."
+  },
+  {
+    filename: "prova2_2026_pag_4_pipeline_6estagios_vliw.jpg",
+    title: "Prova 2 (2026.1) - Pág 4: Pipeline 6 Estágios (2 MEM) & VLIW",
+    category: "Prova Real (UFSM)",
+    badge: "prova",
+    badgeText: "PROVA 2",
+    desc: "Questão 1.d (3.0 pts). Pipeline de 6 estágios com 2 estágios de memória e forwarding sem bolhas no LW, e Questão 2 (3.0 pts) MIPS VLIW de 8 instruções."
+  },
+
+  // 1. Prova 1 Oficial (UFSM)
   {
     filename: "prova_q1_add3.jpg",
     title: "Prova Q1: add3 $rd, $rs, $rt (Monociclo)",
