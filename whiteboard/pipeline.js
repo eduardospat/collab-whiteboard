@@ -309,7 +309,46 @@
   }
 
   /**
-   * Obtem o estado dos 5 estagios fisicos e fios de adiantamento no ciclo atual
+   * Obtem o valor calculado por uma instrucao no pipeline
+   */
+  function getInstructionExecutionValue(instIndex) {
+    if (instIndex < 0 || !state.instructions || instIndex >= state.instructions.length) return 0;
+    const target = state.instructions[instIndex];
+    if (!target || target.isBubble) return 0;
+
+    const simRegs = {
+      '$0': 0, '$zero': 0, '$1': 10, '$2': 20, '$3': 5, '$4': 15, '$5': 30, '$6': 40,
+      '$t0': 100, '$t1': 1, '$t2': 2, '$t3': 3, '$t4': 4, '$t5': 5
+    };
+
+    for (let i = 0; i <= instIndex; i++) {
+      const inst = state.instructions[i];
+      if (!inst || inst.isBubble) continue;
+      const op = (inst.op || 'ADD').toUpperCase();
+      const rd = getRegisterWritten(inst);
+      const rs = inst.rs;
+      const rt = inst.rt;
+      const valRs = simRegs[rs] !== undefined ? simRegs[rs] : 10;
+      const valRt = simRegs[rt] !== undefined ? simRegs[rt] : 5;
+      let res = 0;
+
+      if (op === 'ADD') res = valRs + valRt;
+      else if (op === 'SUB') res = valRs - valRt;
+      else if (op === 'AND') res = valRs & valRt;
+      else if (op === 'OR') res = valRs | valRt;
+      else if (op === 'SLT') res = valRs < valRt ? 1 : 0;
+      else if (op === 'LW') res = (valRs + (inst.offset || 0)) * 2;
+      else if (op === 'SW') res = valRt;
+
+      if (i === instIndex) return res;
+      if (rd && rd !== '$0' && rd !== '$zero') simRegs[rd] = res;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Obtem o estado dos 5 estagios fisicos e detalhes didaticos dos fios de adiantamento no ciclo atual
    */
   function getCurrentStageState(cycle) {
     const res = {
@@ -318,8 +357,38 @@
       EX: null,
       MEM: null,
       WB: null,
-      forwardA: null, // { from: 'EX/MEM' | 'MEM/WB', reg: '$2' }
-      forwardB: null
+      forwardA: {
+        active: false,
+        signal: '00',
+        from: 'ID/EX',
+        reg: '',
+        freshVal: null,
+        staleVal: null,
+        producerInst: null,
+        producerStage: null,
+        consumerInst: null,
+        desc: 'Operando A: Lido do Banco de Registradores (via ID/EX)',
+        cCondition: 'Padrao: ForwardA = 0b00 (Banco de Registradores)',
+        why: 'Sem necessidade de adiantamento para a Entrada A neste ciclo.',
+        unresolvedHazard: false,
+        hazardExplanation: ''
+      },
+      forwardB: {
+        active: false,
+        signal: '00',
+        from: 'ID/EX',
+        reg: '',
+        freshVal: null,
+        staleVal: null,
+        producerInst: null,
+        producerStage: null,
+        consumerInst: null,
+        desc: 'Operando B: Lido do Banco de Registradores (via ID/EX)',
+        cCondition: 'Padrao: ForwardB = 0b00 (Banco de Registradores)',
+        why: 'Sem necessidade de adiantamento para a Entrada B neste ciclo.',
+        unresolvedHazard: false,
+        hazardExplanation: ''
+      }
     };
 
     if (cycle < 1 || !state.schedule) return res;
@@ -343,35 +412,134 @@
       }
     });
 
-    // Verificacao de fios de Forwarding no ciclo atual
-    if (state.forwardingEnabled && res.EX && !res.EX.empty && !res.EX.isBubble) {
+    const regsAtCycle = computeRegisterValues(cycle);
+
+    if (res.EX && !res.EX.empty && !res.EX.isBubble) {
       const exInst = res.EX.instruction;
       const exRead = getRegistersRead(exInst);
+      const regA = exRead[0] || null;
+      const regB = exRead[1] || null;
 
-      // Checa se o estagio MEM contem um produtor compativel
-      if (res.MEM && !res.MEM.empty && !res.MEM.isBubble) {
-        const memInst = res.MEM.instruction;
-        const memDest = getRegisterWritten(memInst);
-        if (memDest && memDest !== '$0') {
-          if (exRead[0] === memDest) {
-            res.forwardA = { from: 'EX/MEM', reg: memDest, desc: `Adiantamento de EX/MEM (${memDest}) para Entrada A da ULA` };
-          }
-          if (exRead[1] === memDest) {
-            res.forwardB = { from: 'EX/MEM', reg: memDest, desc: `Adiantamento de EX/MEM (${memDest}) para Entrada B da ULA` };
-          }
-        }
+      if (regA) {
+        res.forwardA.reg = regA;
+        res.forwardA.staleVal = regsAtCycle[regA] !== undefined ? regsAtCycle[regA] : 0;
+        res.forwardA.freshVal = res.forwardA.staleVal;
+        res.forwardA.desc = `Entrada A: Lida do Banco de Registradores (via ID/EX: ${regA} = ${res.forwardA.staleVal})`;
+        res.forwardA.cCondition = 'Padrao: ForwardA = 0b00 (Banco de Registradores)';
+        res.forwardA.why = `A instrucao em EX le o registrador ${regA}. No ciclo atual, ele e suprido diretamente da leitura realizada no estagio ID.`;
       }
 
-      // Checa se o estagio WB contem um produtor compativel (se nao foi suprido por MEM)
-      if (res.WB && !res.WB.empty && !res.WB.isBubble) {
-        const wbInst = res.WB.instruction;
-        const wbDest = getRegisterWritten(wbInst);
-        if (wbDest && wbDest !== '$0') {
-          if (exRead[0] === wbDest && !res.forwardA) {
-            res.forwardA = { from: 'MEM/WB', reg: wbDest, desc: `Adiantamento de MEM/WB (${wbDest}) para Entrada A da ULA` };
+      if (regB) {
+        res.forwardB.reg = regB;
+        res.forwardB.staleVal = regsAtCycle[regB] !== undefined ? regsAtCycle[regB] : 0;
+        res.forwardB.freshVal = res.forwardB.staleVal;
+        res.forwardB.desc = `Entrada B: Lida do Banco de Registradores (via ID/EX: ${regB} = ${res.forwardB.staleVal})`;
+        res.forwardB.cCondition = 'Padrao: ForwardB = 0b00 (Banco de Registradores)';
+        res.forwardB.why = `A instrucao em EX le o registrador ${regB}. No ciclo atual, ele e suprido diretamente da leitura realizada no estagio ID.`;
+      }
+
+      if (state.forwardingEnabled) {
+        // 1. Checa estagio MEM (Hazard de 1 ciclo - Prioridade EX/MEM)
+        if (res.MEM && !res.MEM.empty && !res.MEM.isBubble) {
+          const memInst = res.MEM.instruction;
+          const memDest = getRegisterWritten(memInst);
+          if (memDest && memDest !== '$0' && memDest !== '$zero') {
+            const memVal = getInstructionExecutionValue(res.MEM.instIndex);
+            if (regA === memDest) {
+              res.forwardA.active = true;
+              res.forwardA.signal = '10';
+              res.forwardA.from = 'EX/MEM';
+              res.forwardA.reg = memDest;
+              res.forwardA.producerInst = memInst;
+              res.forwardA.producerStage = 'MEM';
+              res.forwardA.consumerInst = exInst;
+              res.forwardA.freshVal = memVal;
+              res.forwardA.desc = `Adiantamento de EX/MEM (${memDest} = ${memVal}) para Entrada A da ULA`;
+              res.forwardA.cCondition = `if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) {\n    ForwardA = 0b10; // Adiantamento direto da saida EX/MEM\n}`;
+              res.forwardA.why = `A instrucao em EX ('${formatInstructionText(exInst)}') necessita do registrador ${memDest}. A instrucao anterior ('${formatInstructionText(memInst)}') calculou esse valor no ciclo anterior e ele esta retido no registrador de pipeline EX/MEM. O sinal ForwardA = 10 comuta o Mux A da ULA para receber ${memVal} imediatamente sem esperar a escrita no banco!`;
+            }
+            if (regB === memDest) {
+              res.forwardB.active = true;
+              res.forwardB.signal = '10';
+              res.forwardB.from = 'EX/MEM';
+              res.forwardB.reg = memDest;
+              res.forwardB.producerInst = memInst;
+              res.forwardB.producerStage = 'MEM';
+              res.forwardB.consumerInst = exInst;
+              res.forwardB.freshVal = memVal;
+              res.forwardB.desc = `Adiantamento de EX/MEM (${memDest} = ${memVal}) para Entrada B da ULA`;
+              res.forwardB.cCondition = `if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) {\n    ForwardB = 0b10; // Adiantamento direto da saida EX/MEM\n}`;
+              res.forwardB.why = `A instrucao em EX ('${formatInstructionText(exInst)}') necessita do registrador ${memDest}. A instrucao anterior ('${formatInstructionText(memInst)}') calculou esse valor no ciclo anterior e ele esta retido no registrador de pipeline EX/MEM. O sinal ForwardB = 10 comuta o Mux B da ULA para receber ${memVal} imediatamente sem esperar a escrita no banco!`;
+            }
           }
-          if (exRead[1] === wbDest && !res.forwardB) {
-            res.forwardB = { from: 'MEM/WB', reg: wbDest, desc: `Adiantamento de MEM/WB (${wbDest}) para Entrada B da ULA` };
+        }
+
+        // 2. Checa estagio WB (Hazard de 2 ciclos - Prioridade MEM/WB, somente se nao suprido por MEM)
+        if (res.WB && !res.WB.empty && !res.WB.isBubble) {
+          const wbInst = res.WB.instruction;
+          const wbDest = getRegisterWritten(wbInst);
+          if (wbDest && wbDest !== '$0' && wbDest !== '$zero') {
+            const wbVal = getInstructionExecutionValue(res.WB.instIndex);
+            if (regA === wbDest && !res.forwardA.active) {
+              res.forwardA.active = true;
+              res.forwardA.signal = '01';
+              res.forwardA.from = 'MEM/WB';
+              res.forwardA.reg = wbDest;
+              res.forwardA.producerInst = wbInst;
+              res.forwardA.producerStage = 'WB';
+              res.forwardA.consumerInst = exInst;
+              res.forwardA.freshVal = wbVal;
+              res.forwardA.desc = `Adiantamento de MEM/WB (${wbDest} = ${wbVal}) para Entrada A da ULA`;
+              res.forwardA.cCondition = `if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) && !(EX_MEM.RegWrite && ...) && (MEM_WB.RegisterRd == ID_EX.RegisterRs)) {\n    ForwardA = 0b01; // Adiantamento da saida MEM/WB\n}`;
+              res.forwardA.why = `A instrucao em EX ('${formatInstructionText(exInst)}') necessita de ${wbDest}. A instrucao produtora ('${formatInstructionText(wbInst)}') esta em WB (executada ha 2 ciclos). O sinal ForwardA = 01 seleciona o registrador de pipeline MEM/WB, entregando o valor ${wbVal} antes da gravacao final no banco de registradores.`;
+            }
+            if (regB === wbDest && !res.forwardB.active) {
+              res.forwardB.active = true;
+              res.forwardB.signal = '01';
+              res.forwardB.from = 'MEM/WB';
+              res.forwardB.reg = wbDest;
+              res.forwardB.producerInst = wbInst;
+              res.forwardB.producerStage = 'WB';
+              res.forwardB.consumerInst = exInst;
+              res.forwardB.freshVal = wbVal;
+              res.forwardB.desc = `Adiantamento de MEM/WB (${wbDest} = ${wbVal}) para Entrada B da ULA`;
+              res.forwardB.cCondition = `if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) && !(EX_MEM.RegWrite && ...) && (MEM_WB.RegisterRd == ID_EX.RegisterRt)) {\n    ForwardB = 0b01; // Adiantamento da saida MEM/WB\n}`;
+              res.forwardB.why = `A instrucao em EX ('${formatInstructionText(exInst)}') necessita de ${wbDest}. A instrucao produtora ('${formatInstructionText(wbInst)}') esta em WB (executada ha 2 ciclos). O sinal ForwardB = 01 seleciona o registrador de pipeline MEM/WB, entregando o valor ${wbVal} antes da gravacao final no banco de registradores.`;
+            }
+          }
+        }
+      } else {
+        // Forwarding Desativado: verifica se haveria hazard RAW nao resolvido
+        if (res.MEM && !res.MEM.empty && !res.MEM.isBubble) {
+          const memDest = getRegisterWritten(res.MEM.instruction);
+          if (memDest && (memDest === regA || memDest === regB)) {
+            const fresh = getInstructionExecutionValue(res.MEM.instIndex);
+            if (memDest === regA) {
+              res.forwardA.unresolvedHazard = true;
+              res.forwardA.freshVal = fresh;
+              res.forwardA.hazardExplanation = `Hazard RAW ativo! Como o Forwarding esta DESLIGADO, ForwardA permanece em 00 e a ULA recebe o valor defasado (${res.forwardA.staleVal}) em vez de ${fresh}. Sao necessarias bolhas para evitar calculo incorreto!`;
+            }
+            if (memDest === regB) {
+              res.forwardB.unresolvedHazard = true;
+              res.forwardB.freshVal = fresh;
+              res.forwardB.hazardExplanation = `Hazard RAW ativo! Como o Forwarding esta DESLIGADO, ForwardB permanece em 00 e a ULA recebe o valor defasado (${res.forwardB.staleVal}) em vez de ${fresh}. Sao necessarias bolhas para evitar calculo incorreto!`;
+            }
+          }
+        }
+        if (res.WB && !res.WB.empty && !res.WB.isBubble) {
+          const wbDest = getRegisterWritten(res.WB.instruction);
+          if (wbDest && (wbDest === regA || wbDest === regB)) {
+            const fresh = getInstructionExecutionValue(res.WB.instIndex);
+            if (wbDest === regA && !res.forwardA.unresolvedHazard) {
+              res.forwardA.unresolvedHazard = true;
+              res.forwardA.freshVal = fresh;
+              res.forwardA.hazardExplanation = `Hazard RAW ativo de 2 ciclos! ForwardA permanece em 00 e a ULA recebe o valor defasado (${res.forwardA.staleVal}) em vez de ${fresh}.`;
+            }
+            if (wbDest === regB && !res.forwardB.unresolvedHazard) {
+              res.forwardB.unresolvedHazard = true;
+              res.forwardB.freshVal = fresh;
+              res.forwardB.hazardExplanation = `Hazard RAW ativo de 2 ciclos! ForwardB permanece em 00 e a ULA recebe o valor defasado (${res.forwardB.staleVal}) em vez de ${fresh}.`;
+            }
           }
         }
       }
@@ -552,6 +720,30 @@
     }
     computeSchedule();
     renderSimulatorUI();
+
+    if (notifyRemote) {
+      broadcastPipelineAction('update_program', {
+        instructions: state.instructions,
+        forwardingEnabled: state.forwardingEnabled
+      });
+    }
+  }
+
+  function reorderInstruction(fromIndex, toIndex, notifyRemote = true) {
+    if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= state.instructions.length) return;
+    if (toIndex < 0) toIndex = 0;
+    if (toIndex >= state.instructions.length) toIndex = state.instructions.length - 1;
+
+    const [moved] = state.instructions.splice(fromIndex, 1);
+    state.instructions.splice(toIndex, 0, moved);
+    state.scenarioId = 'custom';
+    computeSchedule();
+    renderSimulatorUI();
+
+    const label = moved.isBubble ? 'Bolha (Stall)' : formatInstructionText(moved);
+    if (typeof global.showToast === 'function') {
+      global.showToast(`'${label}' movida para a linha ${toIndex + 1}`);
+    }
 
     if (notifyRemote) {
       broadcastPipelineAction('update_program', {
@@ -1170,9 +1362,15 @@
     const btnReset = document.getElementById('btnPipelineReset');
     if (btnReset) btnReset.addEventListener('click', resetSimulation);
 
-    // Bolha rapida
+    // Bolha rapida (clique ou arraste para soltar diretamente na tabela)
     const btnQuickBubble = document.getElementById('btnPipelineQuickBubble');
     if (btnQuickBubble) {
+      btnQuickBubble.setAttribute('draggable', 'true');
+      btnQuickBubble.setAttribute('title', 'Inserir uma bolha ou arraste e solte diretamente na posicao desejada da tabela/editor');
+      btnQuickBubble.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/pipeline-inst-idx', 'quick-bubble');
+        e.dataTransfer.effectAllowed = 'copy';
+      });
       btnQuickBubble.addEventListener('click', () => {
         insertBubbleAt(state.instructions.length > 0 ? 1 : 0, true);
       });
@@ -1460,17 +1658,239 @@
 
     flow.innerHTML = html;
 
-    // Fios de Forwarding
+    // Inspetor Didatico de Forwarding
     if (wires) {
-      if (cur.forwardA || cur.forwardB) {
-        let wireHtml = '<div class="forwarding-alert-box active">';
-        wireHtml += '<strong>Adiantamento de Hardware (Forwarding) Ativo neste Ciclo:</strong><ul>';
-        if (cur.forwardA) wireHtml += `<li>Fio A: ${cur.forwardA.desc}</li>`;
-        if (cur.forwardB) wireHtml += `<li>Fio B: ${cur.forwardB.desc}</li>`;
-        wireHtml += '</ul></div>';
-        wires.innerHTML = wireHtml;
-      } else {
-        wires.innerHTML = '';
+      const fwdA = cur.forwardA || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
+      const fwdB = cur.forwardB || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
+      const hasActive = fwdA.active || fwdB.active;
+      const isEnabled = state.forwardingEnabled;
+      const cycle = state.currentCycle;
+
+      let statusClass = 'disabled';
+      let statusText = 'Adiantamento Desligado';
+      if (isEnabled) {
+        if (hasActive) {
+          statusClass = 'active';
+          statusText = `Adiantamento Ativo no Ciclo ${cycle}`;
+        } else {
+          statusClass = 'idle';
+          statusText = `Sem Adiantamento no Ciclo ${cycle} (ForwardA=00, ForwardB=00)`;
+        }
+      }
+
+      let wireHtml = `
+        <div class="forwarding-inspector-card">
+          <!-- Top Bar: Status & Sinais MIPS -->
+          <div class="fwd-inspector-head">
+            <div class="fwd-head-title-group">
+              <h4>Unidade de Adiantamento (Forwarding Unit) · Ciclo ${cycle}</h4>
+              <span class="fwd-subtitle">MIPS Datapath: Monitor dos Multiplexadores de Entrada da ULA</span>
+            </div>
+            <div class="fwd-status-pill ${statusClass}">
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span>${statusText}</span>
+            </div>
+          </div>
+
+          <!-- Esquemático dos 2 Multiplexadores da ULA (Mux A e Mux B) -->
+          <div class="fwd-mux-columns">
+            <!-- Mux Entrada A -->
+            <div class="fwd-mux-card ${fwdA.active ? 'highlight' : ''}">
+              <div class="mux-top">
+                <span class="mux-title">Mux Entrada A da ULA (Operando Rs: <code>${fwdA.reg || '--'}</code>)</span>
+                <span class="mux-signal-chip ${fwdA.signal !== '00' ? 'active' : ''}">ForwardA = ${fwdA.signal}</span>
+              </div>
+              <div class="mux-ports-grid">
+                <div class="mux-port-item ${fwdA.signal === '00' ? 'selected' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">00</span>
+                    <span class="port-name">Banco de Registradores (ID/EX)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdA.staleVal !== null ? 'val: ' + fwdA.staleVal : '--'}</span>
+                    ${fwdA.signal === '00' ? '<span class="port-badge">SELECIONADO</span>' : ''}
+                  </div>
+                </div>
+                <div class="mux-port-item ${fwdA.signal === '10' ? 'selected fwd-active' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">10</span>
+                    <span class="port-name">Fio EX/MEM (1 Ciclo atras)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdA.signal === '10' ? 'val: ' + fwdA.freshVal : (cur.MEM && !cur.MEM.empty ? 'val: ' + getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
+                    ${fwdA.signal === '10' ? '<span class="port-badge active">SELECIONADO (EX/MEM)</span>' : ''}
+                  </div>
+                </div>
+                <div class="mux-port-item ${fwdA.signal === '01' ? 'selected fwd-active' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">01</span>
+                    <span class="port-name">Fio MEM/WB (2 Ciclos atras)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdA.signal === '01' ? 'val: ' + fwdA.freshVal : (cur.WB && !cur.WB.empty ? 'val: ' + getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
+                    ${fwdA.signal === '01' ? '<span class="port-badge active">SELECIONADO (MEM/WB)</span>' : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="mux-result-line">
+                <span>Entrada A da ULA recebe:</span>
+                <strong>${fwdA.active ? fwdA.freshVal : (fwdA.staleVal !== null ? fwdA.staleVal : '--')}</strong>
+                ${fwdA.active ? '<span class="fwd-gain-tag">Atalho ativo: sem esperar escrita em WB!</span>' : ''}
+                ${fwdA.unresolvedHazard ? '<span class="port-badge bypass">Dado Defasado (RAW)!</span>' : ''}
+              </div>
+            </div>
+
+            <!-- Mux Entrada B -->
+            <div class="fwd-mux-card ${fwdB.active ? 'highlight' : ''}">
+              <div class="mux-top">
+                <span class="mux-title">Mux Entrada B da ULA (Operando Rt: <code>${fwdB.reg || '--'}</code>)</span>
+                <span class="mux-signal-chip ${fwdB.signal !== '00' ? 'active' : ''}">ForwardB = ${fwdB.signal}</span>
+              </div>
+              <div class="mux-ports-grid">
+                <div class="mux-port-item ${fwdB.signal === '00' ? 'selected' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">00</span>
+                    <span class="port-name">Banco de Registradores (ID/EX)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdB.staleVal !== null ? 'val: ' + fwdB.staleVal : '--'}</span>
+                    ${fwdB.signal === '00' ? '<span class="port-badge">SELECIONADO</span>' : ''}
+                  </div>
+                </div>
+                <div class="mux-port-item ${fwdB.signal === '10' ? 'selected fwd-active' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">10</span>
+                    <span class="port-name">Fio EX/MEM (1 Ciclo atras)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdB.signal === '10' ? 'val: ' + fwdB.freshVal : (cur.MEM && !cur.MEM.empty ? 'val: ' + getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
+                    ${fwdB.signal === '10' ? '<span class="port-badge active">SELECIONADO (EX/MEM)</span>' : ''}
+                  </div>
+                </div>
+                <div class="mux-port-item ${fwdB.signal === '01' ? 'selected fwd-active' : ''}">
+                  <div class="port-left">
+                    <span class="port-code">01</span>
+                    <span class="port-name">Fio MEM/WB (2 Ciclos atras)</span>
+                  </div>
+                  <div class="port-right">
+                    <span class="port-val">${fwdB.signal === '01' ? 'val: ' + fwdB.freshVal : (cur.WB && !cur.WB.empty ? 'val: ' + getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
+                    ${fwdB.signal === '01' ? '<span class="port-badge active">SELECIONADO (MEM/WB)</span>' : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="mux-result-line">
+                <span>Entrada B da ULA recebe:</span>
+                <strong>${fwdB.active ? fwdB.freshVal : (fwdB.staleVal !== null ? fwdB.staleVal : '--')}</strong>
+                ${fwdB.active ? '<span class="fwd-gain-tag">Atalho ativo: sem esperar escrita em WB!</span>' : ''}
+                ${fwdB.unresolvedHazard ? '<span class="port-badge bypass">Dado Defasado (RAW)!</span>' : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- Painel Didático de Explicação Passo a Passo -->
+          <div class="fwd-explanation-panel">
+            <h5>
+              <span>Como Funciona o Adiantamento neste Passo?</span>
+              <button id="btnToggleFwdCode" class="fwd-c-toggle-btn" title="Alternar visualizacao da condicao em C da prova">
+                <span>Ver Codigo em C da Prova</span>
+                <svg class="ui-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </h5>
+
+            <div class="fwd-steps-list">
+              ${hasActive ? `
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">1</div>
+                  <div class="fwd-step-content">
+                    <strong>Necessidade de Dados:</strong> A instrucao no estagio EX (<code>${cur.EX.label}</code>) necessita dos dados dos registradores para realizar o calculo na ULA agora no Ciclo ${cycle}.
+                  </div>
+                </div>
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">2</div>
+                  <div class="fwd-step-content">
+                    <strong>Detecção de Dependência:</strong> ${fwdA.active ? fwdA.why : ''} ${fwdB.active ? fwdB.why : ''}
+                  </div>
+                </div>
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">3</div>
+                  <div class="fwd-step-content">
+                    <strong>Atalho de Hardware (Forwarding):</strong> A Unidade de Forwarding ajustou os sinais de controle dos multiplexadores (${fwdA.active ? `ForwardA = ${fwdA.signal}` : ''} ${fwdB.active ? `ForwardB = ${fwdB.signal}` : ''}), desviando o dado dos registradores de pipeline diretamente para a ULA antes da escrita no banco.
+                  </div>
+                </div>
+                <div class="fwd-compare-box">
+                  <span>Comparativo de Valores:</span>
+                  ${fwdA.active ? `
+                    <div class="fwd-compare-val stale">Banco (ID/EX): ${fwdA.staleVal} (desatualizado)</div>
+                    <div class="fwd-compare-val fresh">Fio (${fwdA.from}): ${fwdA.freshVal} (correto)</div>
+                  ` : ''}
+                  ${fwdB.active ? `
+                    <div class="fwd-compare-val stale">Banco (ID/EX): ${fwdB.staleVal} (desatualizado)</div>
+                    <div class="fwd-compare-val fresh">Fio (${fwdB.from}): ${fwdB.freshVal} (correto)</div>
+                  ` : ''}
+                </div>
+              ` : (isEnabled ? `
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">1</div>
+                  <div class="fwd-step-content">
+                    <strong>Operacao Normal sem Conflitos:</strong> No Ciclo ${cycle}, a instrucao no estagio EX (${cur.EX.empty ? 'nenhuma' : '<code>' + cur.EX.label + '</code>'}) nao depende de resultados pendentes nos estagios MEM ou WB.
+                  </div>
+                </div>
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">2</div>
+                  <div class="fwd-step-content">
+                    <strong>Sinais em Repouso:</strong> Os multiplexadores estao em <code>ForwardA = 00</code> e <code>ForwardB = 00</code>. Os operandos sao supridos normalmente pelo Banco de Registradores lido na fase ID.
+                  </div>
+                </div>
+              ` : `
+                <div class="fwd-step-item">
+                  <div class="fwd-step-num">!</div>
+                  <div class="fwd-step-content">
+                    <strong style="color:#f87171;">Adiantamento de Hardware Desativado:</strong> Os multiplexadores estao travados em <code>ForwardA = 00</code> e <code>ForwardB = 00</code>.
+                    ${fwdA.unresolvedHazard ? `<p style="color:#fca5a5; margin:4px 0 0 0;">${fwdA.hazardExplanation}</p>` : ''}
+                    ${fwdB.unresolvedHazard ? `<p style="color:#fca5a5; margin:4px 0 0 0;">${fwdB.hazardExplanation}</p>` : ''}
+                    ${!fwdA.unresolvedHazard && !fwdB.unresolvedHazard ? '<p style="margin:4px 0 0 0;">Nenhum conflito imediato neste ciclo, mas dependencias exigirao bolhas manuais para execucao correta.</p>' : ''}
+                  </div>
+                </div>
+              `)}
+            </div>
+
+            <!-- Codigo em C da Prova 2 UFSM (Opcional Expansivel) -->
+            <div id="fwdCodeBox" class="fwd-c-logic-box" style="display:none;">
+              <div class="fwd-c-code">/* Unidade de Forwarding (UFSM / Patterson & Hennessy) */
+// 1. Hazard EX (1 ciclo de distancia):
+if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) {
+    ForwardA = 0b10; // Adiantamento de EX/MEM -> Entrada A da ULA
+}
+if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) {
+    ForwardB = 0b10; // Adiantamento de EX/MEM -> Entrada B da ULA
+}
+
+// 2. Hazard MEM (2 ciclos de distancia):
+if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
+    !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) &&
+    (MEM_WB.RegisterRd == ID_EX.RegisterRs)) {
+    ForwardA = 0b01; // Adiantamento de MEM/WB -> Entrada A da ULA
+}
+if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
+    !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) &&
+    (MEM_WB.RegisterRd == ID_EX.RegisterRt)) {
+    ForwardB = 0b01; // Adiantamento de MEM/WB -> Entrada B da ULA
+}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      wires.innerHTML = wireHtml;
+
+      const btnToggle = document.getElementById('btnToggleFwdCode');
+      const codeBox = document.getElementById('fwdCodeBox');
+      if (btnToggle && codeBox) {
+        btnToggle.addEventListener('click', () => {
+          const isHidden = codeBox.style.display === 'none';
+          codeBox.style.display = isHidden ? 'block' : 'none';
+          btnToggle.querySelector('span').textContent = isHidden ? 'Ocultar Codigo em C' : 'Ver Codigo em C da Prova';
+        });
       }
     }
   }
@@ -1503,12 +1923,13 @@
     const totalCols = Math.max(state.maxCycles, 8);
 
     let html = '<table class="pipeline-matrix-table"><thead><tr>';
+    html += '<th class="drag-col-header" title="Arraste para reordenar instrucoes e bolhas">Mover</th>';
     html += '<th class="inst-col-header">Instrucao</th>';
     html += '<th class="action-col-header">Acao</th>';
 
     for (let c = 1; c <= totalCols; c++) {
       const isCur = c === state.currentCycle;
-      html += `<th class="cycle-col-header ${isCur ? 'current' : ''}">C${c}</th>`;
+      html += `<th class="cycle-col-header ${isCur ? 'current' : ''}" data-cycle="${c}" style="cursor:pointer;" title="Clique para inspecionar o Ciclo ${c}">C${c}</th>`;
     }
     html += '</tr></thead><tbody>';
 
@@ -1517,7 +1938,12 @@
       const isBubble = s.isBubble;
       const prevIsBubble = r > 0 && state.instructions[r - 1] && state.instructions[r - 1].isBubble;
 
-      html += `<tr>`;
+      html += `<tr class="matrix-row ${isBubble ? 'bubble' : ''}" draggable="true" data-inst-idx="${s.instIndex}">`;
+      html += `<td class="matrix-drag-cell" title="Arraste para reposicionar no cronograma">
+        <span class="matrix-drag-grip">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+        </span>
+      </td>`;
       html += `<td class="inst-name-cell ${isBubble ? 'bubble' : ''}">${formatInstructionText(s.instruction)}</td>`;
       html += `<td class="inst-action-cell">
         <div class="matrix-actions-group">`;
@@ -1538,11 +1964,29 @@
 
         if (stage) {
           const cfg = STAGE_CONFIG[stage] || STAGE_CONFIG.BOLHA;
-          html += `<td class="matrix-stage-cell ${isCur ? 'current' : ''}">
+          let fwdBadgeHtml = '';
+
+          // Badges de Forwarding na celula EX
+          if (stage === 'EX' && state.forwardingEnabled) {
+            const cycleState = getCurrentStageState(c);
+            const fwdList = [];
+            if (cycleState.forwardA && cycleState.forwardA.active && cycleState.forwardA.consumerInst === s.instruction) {
+              fwdList.push(`A:${cycleState.forwardA.reg}(${cycleState.forwardA.from})`);
+            }
+            if (cycleState.forwardB && cycleState.forwardB.active && cycleState.forwardB.consumerInst === s.instruction) {
+              fwdList.push(`B:${cycleState.forwardB.reg}(${cycleState.forwardB.from})`);
+            }
+            if (fwdList.length > 0) {
+              fwdBadgeHtml = `<span class="matrix-fwd-badge" data-cycle="${c}" title="Adiantamento no Ciclo ${c}: ${fwdList.join(' | ')}">FWD ${fwdList.join(', ')}</span>`;
+            }
+          }
+
+          html += `<td class="matrix-stage-cell ${isCur ? 'current' : ''}" data-cycle="${c}" style="cursor:pointer;" title="Ciclo ${c}: ${stage} - Clique para inspecionar">
             <span class="matrix-stage-badge" style="background:${cfg.bg}; color:${cfg.text}; border:1px solid ${cfg.color}">${stage}</span>
+            ${fwdBadgeHtml}
           </td>`;
         } else {
-          html += `<td class="matrix-empty-cell ${isCur ? 'current' : ''}">·</td>`;
+          html += `<td class="matrix-empty-cell ${isCur ? 'current' : ''}" data-cycle="${c}" style="cursor:pointer;" title="Ciclo ${c}: Inativo">·</td>`;
         }
       }
       html += `</tr>`;
@@ -1551,9 +1995,22 @@
     html += '</tbody></table>';
     container.innerHTML = html;
 
+    // Botoes de clique rapido de Ciclo na Matriz
+    container.querySelectorAll('[data-cycle]').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        // Nao intercepta cliques nos botoes de acao
+        if (e.target.closest('button')) return;
+        const cyc = parseInt(cell.getAttribute('data-cycle'), 10);
+        if (!isNaN(cyc)) {
+          setCycle(cyc, true);
+        }
+      });
+    });
+
     // Conecta botoes de inserir bolha na tabela
     container.querySelectorAll('.matrix-btn-bubble').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const row = parseInt(btn.getAttribute('data-row'), 10);
         insertBubbleAt(row, true);
       });
@@ -1562,8 +2019,65 @@
     // Conecta botoes de remover bolha na tabela
     container.querySelectorAll('.matrix-btn-remove-bubble').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const idx = parseInt(btn.getAttribute('data-idx'), 10);
         removeInstructionAt(idx, true);
+      });
+    });
+
+    // Drag-and-Drop nas linhas da Matriz Espaco-Tempo
+    const rows = container.querySelectorAll('.matrix-row');
+    rows.forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        const idx = row.getAttribute('data-inst-idx');
+        e.dataTransfer.setData('text/pipeline-inst-idx', idx);
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('is-dragging');
+      });
+
+      row.addEventListener('dragend', () => {
+        rows.forEach(r => r.classList.remove('is-dragging', 'drag-target-above', 'drag-target-below'));
+      });
+
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = row.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          row.classList.add('drag-target-above');
+          row.classList.remove('drag-target-below');
+        } else {
+          row.classList.add('drag-target-below');
+          row.classList.remove('drag-target-above');
+        }
+      });
+
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('drag-target-above', 'drag-target-below');
+      });
+
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-target-above', 'drag-target-below');
+        const dragData = e.dataTransfer.getData('text/pipeline-inst-idx');
+        const targetIdx = parseInt(row.getAttribute('data-inst-idx'), 10);
+        const rect = row.getBoundingClientRect();
+        const isBelow = e.clientY >= rect.top + rect.height / 2;
+        let insertPos = isBelow ? targetIdx + 1 : targetIdx;
+
+        if (dragData === 'quick-bubble') {
+          insertBubbleAt(insertPos, true);
+          return;
+        }
+
+        const fromIdx = parseInt(dragData, 10);
+        if (isNaN(fromIdx)) return;
+
+        if (fromIdx < insertPos) {
+          insertPos--;
+        }
+        reorderInstruction(fromIdx, insertPos, true);
       });
     });
   }
@@ -1579,7 +2093,10 @@
     state.instructions.forEach((inst, idx) => {
       const isBubble = inst.isBubble;
       html += `
-        <div class="program-item ${isBubble ? 'bubble' : ''}">
+        <div class="program-item ${isBubble ? 'bubble' : ''}" draggable="true" data-prog-idx="${idx}">
+          <span class="prog-drag-handle" title="Arraste para mover no programa">
+            <svg class="ui-icon drag-icon" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+          </span>
           <span class="inst-idx">${idx + 1}.</span>
           <span class="inst-code">${formatInstructionText(inst)}</span>
           <div class="item-actions">
@@ -1607,6 +2124,62 @@
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-idx'), 10);
         removeInstructionAt(idx, true);
+      });
+    });
+
+    // Drag-and-Drop nos itens do Editor de Programa
+    const items = listEl.querySelectorAll('.program-item');
+    items.forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        const idx = item.getAttribute('data-prog-idx');
+        e.dataTransfer.setData('text/pipeline-inst-idx', idx);
+        e.dataTransfer.effectAllowed = 'move';
+        item.classList.add('is-dragging');
+      });
+
+      item.addEventListener('dragend', () => {
+        items.forEach(it => it.classList.remove('is-dragging', 'drag-target-above', 'drag-target-below'));
+      });
+
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          item.classList.add('drag-target-above');
+          item.classList.remove('drag-target-below');
+        } else {
+          item.classList.add('drag-target-below');
+          item.classList.remove('drag-target-above');
+        }
+      });
+
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('drag-target-above', 'drag-target-below');
+      });
+
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        item.classList.remove('drag-target-above', 'drag-target-below');
+        const dragData = e.dataTransfer.getData('text/pipeline-inst-idx');
+        const targetIdx = parseInt(item.getAttribute('data-prog-idx'), 10);
+        const rect = item.getBoundingClientRect();
+        const isBelow = e.clientY >= rect.top + rect.height / 2;
+        let insertPos = isBelow ? targetIdx + 1 : targetIdx;
+
+        if (dragData === 'quick-bubble') {
+          insertBubbleAt(insertPos, true);
+          return;
+        }
+
+        const fromIdx = parseInt(dragData, 10);
+        if (isNaN(fromIdx)) return;
+
+        if (fromIdx < insertPos) {
+          insertPos--;
+        }
+        reorderInstruction(fromIdx, insertPos, true);
       });
     });
   }
@@ -1657,6 +2230,8 @@
     removeInstructionAt: removeInstructionAt,
     removeLastBubble: removeLastBubble,
     removeAllBubbles: removeAllBubbles,
+    reorderInstruction: reorderInstruction,
+    getCurrentStageState: getCurrentStageState,
     handleRemoteSync: handleRemotePipelineSync,
     getState: () => state
   };
