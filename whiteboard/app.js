@@ -1305,7 +1305,7 @@ function drawElement(context, el) {
   else if (el.type === 'rect') {
     context.strokeStyle = el.color;
     context.lineWidth = el.size;
-    context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    context.fillStyle = el.fill || el.fillColor || 'rgba(255, 255, 255, 0.7)';
     const rx = Math.min(el.x1, el.x2);
     const ry = Math.min(el.y1, el.y2);
     const rw = Math.abs(el.x2 - el.x1);
@@ -1592,10 +1592,11 @@ function drawElement(context, el) {
     context.fillText('ULA / ALU', rx + rw * 0.45, ry + rh / 2);
   }
   else if (el.type === 'text') {
-    const fontSize = Math.round(Math.max(12, Math.min(48, (el.size || 2.5) * 2 + 12)));
+    const fontSize = el.fontSize || Math.round(Math.max(12, Math.min(48, (el.size || 2.5) * 2 + 12)));
     context.fillStyle = el.color;
     context.font = `${fontSize}px 'Fira Code', monospace`;
-    context.textBaseline = 'top';
+    context.textAlign = el.textAlign || 'left';
+    context.textBaseline = el.textBaseline || 'top';
     context.fillText(el.text, el.x, el.y);
   }
   else if (el.type === 'image') {
@@ -1652,7 +1653,7 @@ function getElementBoundingBox(el) {
       height: Math.max(12, Math.abs(el.y2 - el.y1))
     };
   } else if (el.type === 'text') {
-    const fontSize = Math.round(Math.max(12, Math.min(48, (el.size || 2.5) * 2 + 12)));
+    const fontSize = el.fontSize || Math.round(Math.max(12, Math.min(48, (el.size || 2.5) * 2 + 12)));
     const estWidth = Math.max(24, (el.text || '').length * (fontSize * 0.62));
     return {
       x: el.x,
@@ -7036,4 +7037,39 @@ async function openCollabModal() {
 function closeCollabModal() {
   if (collabModal) collabModal.classList.remove('open');
 }
+
+// ==================== Integracao Externa do Canvas (Whiteboard API) ====================
+Object.defineProperty(window, 'elements', {
+  get: () => elements,
+  set: (val) => { elements = val; },
+  configurable: true
+});
+window.screenToCanvas = screenToCanvas;
+window.canvasToScreen = canvasToScreen;
+window.render = render;
+window.showToast = showToast;
+window.recordState = recordState;
+window.scheduleAutoSave = scheduleAutoSave;
+window.broadcastElementAdd = broadcastElementAdd;
+window.broadcastBoardSync = broadcastBoardSync;
+window.sendWsMessage = sendWsMessage;
+
+window.addElementsToBoard = function(newElementsList) {
+  if (!Array.isArray(newElementsList) || newElementsList.length === 0) return;
+  recordState();
+  newElementsList.forEach(el => {
+    if (!el.id) {
+      el.id = (typeof generateId === 'function' ? generateId() : 'el-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7));
+    }
+    invalidateElementBBox(el);
+    elements.push(el);
+    if (typeof broadcastElementAdd === 'function') {
+      broadcastElementAdd(el);
+    }
+  });
+  render();
+  scheduleAutoSave();
+  broadcastBoardSync();
+};
+
 

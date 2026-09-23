@@ -712,14 +712,18 @@
   // ==================== Exportacao para o Whiteboard Canvas ====================
 
   function exportPipelineToCanvas() {
-    if (typeof global.screenToCanvas !== 'function' || !global.elements) {
+    const s2c = typeof global.screenToCanvas === 'function' ? global.screenToCanvas : (typeof screenToCanvas === 'function' ? screenToCanvas : null);
+    const addFn = typeof global.addElementsToBoard === 'function' ? global.addElementsToBoard : null;
+    const elems = global.elements || (typeof elements !== 'undefined' ? elements : null);
+
+    if (!addFn && !elems) {
       alert('Whiteboard canvas nao acessivel para exportacao.');
       return;
     }
 
     const centerScreenX = window.innerWidth / 2;
     const centerScreenY = window.innerHeight / 2;
-    const origin = global.screenToCanvas(centerScreenX, centerScreenY);
+    const origin = s2c ? s2c(centerScreenX, centerScreenY) : { x: 400, y: 300 };
 
     const startX = Math.round(origin.x - 380);
     const startY = Math.round(origin.y - 200);
@@ -842,15 +846,18 @@
     }
 
     // 3. Adiciona elementos ao canvas do whiteboard
-    newElements.forEach(el => {
-      global.elements.push(el);
-      if (typeof global.broadcastElementAdd === 'function') {
-        global.broadcastElementAdd(el);
-      }
-    });
-
-    if (typeof global.render === 'function') {
-      global.render();
+    if (addFn) {
+      addFn(newElements);
+    } else if (elems) {
+      newElements.forEach(el => {
+        elems.push(el);
+        if (typeof global.broadcastElementAdd === 'function') {
+          global.broadcastElementAdd(el);
+        }
+      });
+      if (typeof global.render === 'function') global.render();
+      if (typeof global.scheduleAutoSave === 'function') global.scheduleAutoSave();
+      if (typeof global.broadcastBoardSync === 'function') global.broadcastBoardSync();
     }
 
     if (typeof global.showToast === 'function') {
