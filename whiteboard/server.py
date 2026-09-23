@@ -43,6 +43,17 @@ os.makedirs(MATERIALS_DIR, exist_ok=True)
 tunnel_proc = None
 tunnel_url = None
 
+def ensure_warp_connected():
+    warp_bin = shutil.which('warp-cli') or shutil.which('warp-cli.exe')
+    if warp_bin:
+        try:
+            status_res = subprocess.run([warp_bin, 'status'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
+            if 'Disconnected' in status_res.stdout:
+                subprocess.run([warp_bin, 'connect'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                time.sleep(1.5)
+        except Exception:
+            pass
+
 def find_cloudflared():
     for candidate in [
         os.path.join(REPO_DIR, 'cloudflared.exe' if sys.platform.startswith('win') else 'cloudflared'),
@@ -1080,6 +1091,8 @@ try:
         cf_bin = find_cloudflared()
         if not cf_bin:
             raise HTTPException(status_code=500, detail="Binário cloudflared não encontrado no sistema.")
+
+        ensure_warp_connected()
 
         try:
             cmd = [

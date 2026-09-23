@@ -57,6 +57,18 @@ def is_port_in_use(port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
+def ensure_warp_connected():
+    warp_bin = shutil.which('warp-cli') or shutil.which('warp-cli.exe')
+    if warp_bin:
+        try:
+            status_res = subprocess.run([warp_bin, 'status'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
+            if 'Disconnected' in status_res.stdout:
+                print("[INFO] Conectando Cloudflare WARP para contornar bloqueio de porta 7844 na rede...")
+                subprocess.run([warp_bin, 'connect'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                time.sleep(1.5)
+        except Exception:
+            pass
+
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED):
         if not IS_WINDOWS and not os.access(CLOUDFLARED, os.X_OK):
@@ -118,6 +130,8 @@ def main():
         server_py = os.path.join(BASE_DIR, 'whiteboard', 'server.py')
         subprocess.Popen([sys.executable, server_py, '--no-browser'])
         time.sleep(1.5)
+
+    ensure_warp_connected()
 
     print("\n[INFO] Conectando aos servidores da Cloudflare...")
     cmd = [
