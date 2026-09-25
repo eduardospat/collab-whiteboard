@@ -904,21 +904,30 @@
   // ==================== Exportacao para o Whiteboard Canvas ====================
 
   function exportPipelineToCanvas() {
-    const s2c = typeof global.screenToCanvas === 'function' ? global.screenToCanvas : (typeof screenToCanvas === 'function' ? screenToCanvas : null);
-    const addFn = typeof global.addElementsToBoard === 'function' ? global.addElementsToBoard : null;
-    const elems = global.elements || (typeof elements !== 'undefined' ? elements : null);
-
-    if (!addFn && !elems) {
-      alert('Whiteboard canvas nao acessivel para exportacao.');
-      return;
+    let origin;
+    if (typeof global.getViewCenter === 'function') {
+      origin = global.getViewCenter();
+    } else if (typeof global.screenToCanvas === 'function') {
+      const wrap = document.getElementById('canvasWrapper') || document.getElementById('canvas-container') || document.body;
+      const w = wrap.clientWidth || window.innerWidth;
+      const h = wrap.clientHeight || window.innerHeight;
+      origin = global.screenToCanvas(w / 2, h / 2);
+    } else {
+      origin = { x: 400, y: 300 };
     }
 
-    const centerScreenX = window.innerWidth / 2;
-    const centerScreenY = window.innerHeight / 2;
-    const origin = s2c ? s2c(centerScreenX, centerScreenY) : { x: 400, y: 300 };
+    if (!origin || isNaN(origin.x) || isNaN(origin.y)) {
+      origin = { x: 400, y: 300 };
+    }
 
-    const startX = Math.round(origin.x - 380);
-    const startY = Math.round(origin.y - 200);
+    const rowHeight = 36;
+    const colWidth = 58;
+    const numInsts = (state.schedule && state.schedule.length > 0) ? state.schedule.length : state.instructions.length;
+    const totalCols = Math.min(14, Math.max(state.maxCycles || 5, 5));
+
+    const totalWidth = 190 + totalCols * colWidth;
+    const startX = Math.round(origin.x - totalWidth / 2);
+    const startY = Math.round(origin.y - (50 + numInsts * rowHeight + 35) / 2);
 
     const newElements = [];
     const now = Date.now();
@@ -928,31 +937,26 @@
       id: `pipe-title-${now}`,
       type: 'rect',
       x1: startX - 10,
-      y1: startY - 50,
-      x2: startX + 760,
-      y2: startY - 10,
+      y1: startY - 48,
+      x2: startX + totalWidth + 10,
+      y2: startY - 8,
       fill: '#1e293b',
       color: '#3b82f6',
       size: 2
     });
 
+    const scenarioName = (PIPELINE_SCENARIOS[state.scenarioId]?.name || 'Programa Personalizado').split('(')[0].trim();
     newElements.push({
       id: `pipe-title-text-${now}`,
       type: 'text',
-      x: startX + 15,
-      y: startY - 40,
-      text: `Pipeline MIPS (5 Estagios) · Cenario: ${PIPELINE_SCENARIOS[state.scenarioId]?.name || 'Personalizado'} · ${state.forwardingEnabled ? 'Com Forwarding' : 'Sem Forwarding'}`,
+      x: startX + 10,
+      y: startY - 38,
+      text: `Pipeline MIPS (5 Estagios) · ${scenarioName} · ${state.forwardingEnabled ? 'Com Forwarding' : 'Sem Forwarding'}`,
       color: '#ffffff',
-      fontSize: 14
+      fontSize: 13
     });
 
-    // 2. Tabela Espaco-Tempo
-    const rowHeight = 36;
-    const colWidth = 58;
-    const numInsts = state.schedule.length;
-    const totalCols = Math.min(12, state.maxCycles);
-
-    // Cabecalho de colunas (Ciclos)
+    // 2. Cabecalho de Colunas (Ciclos)
     for (let c = 1; c <= totalCols; c++) {
       const colX = startX + 180 + (c - 1) * colWidth;
       const isCur = c === state.currentCycle;
@@ -963,14 +967,14 @@
         y1: startY,
         x2: colX + colWidth - 4,
         y2: startY + 26,
-        fill: isCur ? '#3b82f6' : '#334155',
+        fill: isCur ? '#2563eb' : '#334155',
         color: isCur ? '#60a5fa' : '#475569',
         size: 1.5
       });
       newElements.push({
         id: `pipe-head-txt-${c}-${now}`,
         type: 'text',
-        x: colX + 12,
+        x: colX + (c >= 10 ? 14 : 18),
         y: startY + 6,
         text: `C${c}`,
         color: '#ffffff',
@@ -978,37 +982,38 @@
       });
     }
 
-    // Linhas de instrucoes
+    // 3. Linhas de Instrucoes
     for (let r = 0; r < numInsts; r++) {
-      const s = state.schedule[r];
-      const rowY = startY + 34 + r * rowHeight;
+      const s = state.schedule[r] || { instruction: state.instructions[r], isBubble: state.instructions[r]?.isBubble, stages: {} };
+      const rowY = startY + 32 + r * rowHeight;
+      const isBubble = !!s.isBubble;
 
-      // Caixa da instrucao
+      // Caixa da Instrucao
       newElements.push({
         id: `pipe-inst-box-${r}-${now}`,
         type: 'rect',
         x1: startX,
         y1: rowY,
-        x2: startX + 170,
+        x2: startX + 172,
         y2: rowY + rowHeight - 6,
-        fill: s.isBubble ? 'rgba(239, 68, 68, 0.15)' : '#1e293b',
-        color: s.isBubble ? '#ef4444' : '#64748b',
+        fill: isBubble ? '#7f1d1d' : '#1e293b',
+        color: isBubble ? '#ef4444' : '#475569',
         size: 1.5
       });
 
       newElements.push({
         id: `pipe-inst-txt-${r}-${now}`,
         type: 'text',
-        x: startX + 8,
+        x: startX + 10,
         y: rowY + 6,
-        text: formatInstructionText(s.instruction),
-        color: s.isBubble ? '#fca5a5' : '#e2e8f0',
+        text: isBubble ? 'STALL / BOLHA' : formatInstructionText(s.instruction),
+        color: isBubble ? '#fca5a5' : '#ffffff',
         fontSize: 11
       });
 
       // Celulas de estagios
       for (let c = 1; c <= totalCols; c++) {
-        const stage = s.stages[c];
+        const stage = s.stages ? s.stages[c] : null;
         const colX = startX + 180 + (c - 1) * colWidth;
 
         if (stage) {
@@ -1037,19 +1042,45 @@
       }
     }
 
-    // 3. Adiciona elementos ao canvas do whiteboard
-    if (addFn) {
-      addFn(newElements);
-    } else if (elems) {
+    // 4. Cartao de Rodape / Legenda
+    const footerY = startY + 32 + numInsts * rowHeight;
+    newElements.push({
+      id: `pipe-footer-${now}`,
+      type: 'rect',
+      x1: startX,
+      y1: footerY,
+      x2: startX + totalWidth,
+      y2: footerY + 24,
+      fill: '#0f172a',
+      color: '#334155',
+      size: 1
+    });
+
+    newElements.push({
+      id: `pipe-footer-txt-${now}`,
+      type: 'text',
+      x: startX + 10,
+      y: footerY + 5,
+      text: `Ciclo Atual: C${state.currentCycle} · Total: ${state.maxCycles} Ciclos · Adiantamento: ${state.forwardingEnabled ? 'Ativo' : 'Desativado'}`,
+      color: '#94a3b8',
+      fontSize: 10
+    });
+
+    // 5. Adiciona elementos ao canvas do whiteboard
+    if (typeof global.addElementsToBoard === 'function') {
+      global.addElementsToBoard(newElements, true);
+    } else if (global.elements && Array.isArray(global.elements)) {
       newElements.forEach(el => {
-        elems.push(el);
-        if (typeof global.broadcastElementAdd === 'function') {
-          global.broadcastElementAdd(el);
-        }
+        global.elements.push(el);
+        if (typeof global.broadcastElementAdd === 'function') global.broadcastElementAdd(el);
       });
+      if (typeof global.setSelectedElements === 'function') global.setSelectedElements(newElements);
       if (typeof global.render === 'function') global.render();
       if (typeof global.scheduleAutoSave === 'function') global.scheduleAutoSave();
       if (typeof global.broadcastBoardSync === 'function') global.broadcastBoardSync();
+    } else {
+      alert('Whiteboard canvas nao acessivel para exportacao.');
+      return;
     }
 
     if (typeof global.showToast === 'function') {
@@ -1058,6 +1089,7 @@
 
     closeModal();
   }
+
 
   // ==================== Interface Grafica (HTML & Renderizacao) ====================
 
@@ -1658,7 +1690,7 @@
 
     flow.innerHTML = html;
 
-    // Inspetor Didatico de Forwarding
+    // Inspetor Didatico de Forwarding (Design Limpo e Intuitivo)
     if (wires) {
       const fwdA = cur.forwardA || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
       const fwdB = cur.forwardB || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
@@ -1667,196 +1699,122 @@
       const cycle = state.currentCycle;
 
       let statusClass = 'disabled';
-      let statusText = 'Adiantamento Desligado';
+      let statusText = 'Forwarding Desativado';
       if (isEnabled) {
         if (hasActive) {
           statusClass = 'active';
-          statusText = `Adiantamento Ativo no Ciclo ${cycle}`;
+          statusText = `Adiantamento Ativo no Ciclo C${cycle}`;
         } else {
           statusClass = 'idle';
-          statusText = `Sem Adiantamento no Ciclo ${cycle} (ForwardA=00, ForwardB=00)`;
+          statusText = `Sem Conflito no Ciclo C${cycle} (00, 00)`;
         }
+      } else if (fwdA.unresolvedHazard || fwdB.unresolvedHazard) {
+        statusClass = 'disabled';
+        statusText = `Hazard RAW Ativo (Sem Forwarding!)`;
       }
 
       let wireHtml = `
-        <div class="forwarding-inspector-card">
-          <!-- Top Bar: Status & Sinais MIPS -->
-          <div class="fwd-inspector-head">
-            <div class="fwd-head-title-group">
-              <h4>Unidade de Adiantamento (Forwarding Unit) · Ciclo ${cycle}</h4>
-              <span class="fwd-subtitle">MIPS Datapath: Monitor dos Multiplexadores de Entrada da ULA</span>
+        <div class="forwarding-clean-container">
+          <!-- Barra Superior: Titulo e Estados dos Sinais -->
+          <div class="fwd-summary-bar">
+            <div class="fwd-title-area">
+              <span class="fwd-chip-label">Forwarding Unit</span>
+              <span class="fwd-cycle-text">Ciclo <strong>C${cycle}</strong> &middot; Instrucao EX: <code>${cur.EX && !cur.EX.empty ? cur.EX.label : 'Nenhuma'}</code></span>
             </div>
-            <div class="fwd-status-pill ${statusClass}">
-              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <span>${statusText}</span>
+            <div class="fwd-signals-group">
+              <span class="fwd-signal-badge ${fwdA.active ? 'active' : ''}">ForwardA: <strong>${fwdA.signal}</strong> (${fwdA.from})</span>
+              <span class="fwd-signal-badge ${fwdB.active ? 'active' : ''}">ForwardB: <strong>${fwdB.signal}</strong> (${fwdB.from})</span>
+              <span class="fwd-status-pill ${statusClass}">${statusText}</span>
             </div>
           </div>
 
-          <!-- Esquemático dos 2 Multiplexadores da ULA (Mux A e Mux B) -->
-          <div class="fwd-mux-columns">
-            <!-- Mux Entrada A -->
-            <div class="fwd-mux-card ${fwdA.active ? 'highlight' : ''}">
-              <div class="mux-top">
-                <span class="mux-title">Mux Entrada A da ULA (Operando Rs: <code>${fwdA.reg || '--'}</code>)</span>
-                <span class="mux-signal-chip ${fwdA.signal !== '00' ? 'active' : ''}">ForwardA = ${fwdA.signal}</span>
+          <!-- Esquemático dos Multiplexadores da ULA -->
+          <div class="fwd-hardware-grid">
+            <!-- Mux A (Operando Rs) -->
+            <div class="fwd-mux-block ${fwdA.active ? 'active' : ''}">
+              <div class="mux-block-header">
+                <span class="mux-tag">MUX A</span>
+                <span class="mux-reg-target">Entrada Rs: <code>${fwdA.reg || '--'}</code></span>
+                <span class="mux-sig-value">Sinal: <strong>ForwardA = ${fwdA.signal}</strong></span>
               </div>
-              <div class="mux-ports-grid">
-                <div class="mux-port-item ${fwdA.signal === '00' ? 'selected' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">00</span>
-                    <span class="port-name">Banco de Registradores (ID/EX)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdA.staleVal !== null ? 'val: ' + fwdA.staleVal : '--'}</span>
-                    ${fwdA.signal === '00' ? '<span class="port-badge">SELECIONADO</span>' : ''}
-                  </div>
+              <div class="mux-sources-row">
+                <div class="mux-source-pill ${fwdA.signal === '00' ? 'selected' : 'dimmed'}">
+                  <span class="sig-num">00</span>
+                  <span class="sig-name">Banco ID/EX</span>
+                  <span class="sig-val">${fwdA.staleVal !== null ? fwdA.staleVal : '--'}</span>
                 </div>
-                <div class="mux-port-item ${fwdA.signal === '10' ? 'selected fwd-active' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">10</span>
-                    <span class="port-name">Fio EX/MEM (1 Ciclo atras)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdA.signal === '10' ? 'val: ' + fwdA.freshVal : (cur.MEM && !cur.MEM.empty ? 'val: ' + getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
-                    ${fwdA.signal === '10' ? '<span class="port-badge active">SELECIONADO (EX/MEM)</span>' : ''}
-                  </div>
+                <div class="mux-source-pill ${fwdA.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
+                  <span class="sig-num">10</span>
+                  <span class="sig-name">Fio EX/MEM (1 ciclo)</span>
+                  <span class="sig-val">${fwdA.signal === '10' ? fwdA.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
                 </div>
-                <div class="mux-port-item ${fwdA.signal === '01' ? 'selected fwd-active' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">01</span>
-                    <span class="port-name">Fio MEM/WB (2 Ciclos atras)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdA.signal === '01' ? 'val: ' + fwdA.freshVal : (cur.WB && !cur.WB.empty ? 'val: ' + getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
-                    ${fwdA.signal === '01' ? '<span class="port-badge active">SELECIONADO (MEM/WB)</span>' : ''}
-                  </div>
+                <div class="mux-source-pill ${fwdA.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
+                  <span class="sig-num">01</span>
+                  <span class="sig-name">Fio MEM/WB (2 ciclos)</span>
+                  <span class="sig-val">${fwdA.signal === '01' ? fwdA.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
                 </div>
               </div>
-              <div class="mux-result-line">
-                <span>Entrada A da ULA recebe:</span>
-                <strong>${fwdA.active ? fwdA.freshVal : (fwdA.staleVal !== null ? fwdA.staleVal : '--')}</strong>
-                ${fwdA.active ? '<span class="fwd-gain-tag">Atalho ativo: sem esperar escrita em WB!</span>' : ''}
-                ${fwdA.unresolvedHazard ? '<span class="port-badge bypass">Dado Defasado (RAW)!</span>' : ''}
+              <div class="mux-output-wire ${fwdA.active ? 'wire-active' : ''}">
+                <span>Saida Mux A &rarr; Entrada Superior da ULA:</span>
+                <strong class="wire-val">${fwdA.active ? fwdA.freshVal : (fwdA.staleVal !== null ? fwdA.staleVal : '--')}</strong>
+                ${fwdA.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
+                ${fwdA.unresolvedHazard ? '<span class="wire-hazard">Dado Defasado (RAW)!</span>' : ''}
               </div>
             </div>
 
-            <!-- Mux Entrada B -->
-            <div class="fwd-mux-card ${fwdB.active ? 'highlight' : ''}">
-              <div class="mux-top">
-                <span class="mux-title">Mux Entrada B da ULA (Operando Rt: <code>${fwdB.reg || '--'}</code>)</span>
-                <span class="mux-signal-chip ${fwdB.signal !== '00' ? 'active' : ''}">ForwardB = ${fwdB.signal}</span>
+            <!-- Mux B (Operando Rt) -->
+            <div class="fwd-mux-block ${fwdB.active ? 'active' : ''}">
+              <div class="mux-block-header">
+                <span class="mux-tag">MUX B</span>
+                <span class="mux-reg-target">Entrada Rt: <code>${fwdB.reg || '--'}</code></span>
+                <span class="mux-sig-value">Sinal: <strong>ForwardB = ${fwdB.signal}</strong></span>
               </div>
-              <div class="mux-ports-grid">
-                <div class="mux-port-item ${fwdB.signal === '00' ? 'selected' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">00</span>
-                    <span class="port-name">Banco de Registradores (ID/EX)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdB.staleVal !== null ? 'val: ' + fwdB.staleVal : '--'}</span>
-                    ${fwdB.signal === '00' ? '<span class="port-badge">SELECIONADO</span>' : ''}
-                  </div>
+              <div class="mux-sources-row">
+                <div class="mux-source-pill ${fwdB.signal === '00' ? 'selected' : 'dimmed'}">
+                  <span class="sig-num">00</span>
+                  <span class="sig-name">Banco ID/EX</span>
+                  <span class="sig-val">${fwdB.staleVal !== null ? fwdB.staleVal : '--'}</span>
                 </div>
-                <div class="mux-port-item ${fwdB.signal === '10' ? 'selected fwd-active' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">10</span>
-                    <span class="port-name">Fio EX/MEM (1 Ciclo atras)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdB.signal === '10' ? 'val: ' + fwdB.freshVal : (cur.MEM && !cur.MEM.empty ? 'val: ' + getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
-                    ${fwdB.signal === '10' ? '<span class="port-badge active">SELECIONADO (EX/MEM)</span>' : ''}
-                  </div>
+                <div class="mux-source-pill ${fwdB.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
+                  <span class="sig-num">10</span>
+                  <span class="sig-name">Fio EX/MEM (1 ciclo)</span>
+                  <span class="sig-val">${fwdB.signal === '10' ? fwdB.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
                 </div>
-                <div class="mux-port-item ${fwdB.signal === '01' ? 'selected fwd-active' : ''}">
-                  <div class="port-left">
-                    <span class="port-code">01</span>
-                    <span class="port-name">Fio MEM/WB (2 Ciclos atras)</span>
-                  </div>
-                  <div class="port-right">
-                    <span class="port-val">${fwdB.signal === '01' ? 'val: ' + fwdB.freshVal : (cur.WB && !cur.WB.empty ? 'val: ' + getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
-                    ${fwdB.signal === '01' ? '<span class="port-badge active">SELECIONADO (MEM/WB)</span>' : ''}
-                  </div>
+                <div class="mux-source-pill ${fwdB.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
+                  <span class="sig-num">01</span>
+                  <span class="sig-name">Fio MEM/WB (2 ciclos)</span>
+                  <span class="sig-val">${fwdB.signal === '01' ? fwdB.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
                 </div>
               </div>
-              <div class="mux-result-line">
-                <span>Entrada B da ULA recebe:</span>
-                <strong>${fwdB.active ? fwdB.freshVal : (fwdB.staleVal !== null ? fwdB.staleVal : '--')}</strong>
-                ${fwdB.active ? '<span class="fwd-gain-tag">Atalho ativo: sem esperar escrita em WB!</span>' : ''}
-                ${fwdB.unresolvedHazard ? '<span class="port-badge bypass">Dado Defasado (RAW)!</span>' : ''}
+              <div class="mux-output-wire ${fwdB.active ? 'wire-active' : ''}">
+                <span>Saida Mux B &rarr; Entrada Inferior da ULA:</span>
+                <strong class="wire-val">${fwdB.active ? fwdB.freshVal : (fwdB.staleVal !== null ? fwdB.staleVal : '--')}</strong>
+                ${fwdB.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
+                ${fwdB.unresolvedHazard ? '<span class="wire-hazard">Dado Defasado (RAW)!</span>' : ''}
               </div>
             </div>
           </div>
 
-          <!-- Painel Didático de Explicação Passo a Passo -->
-          <div class="fwd-explanation-panel">
-            <h5>
-              <span>Como Funciona o Adiantamento neste Passo?</span>
-              <button id="btnToggleFwdCode" class="fwd-c-toggle-btn" title="Alternar visualizacao da condicao em C da prova">
-                <span>Ver Codigo em C da Prova</span>
-                <svg class="ui-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-            </h5>
-
-            <div class="fwd-steps-list">
+          <!-- Didática Direta: Explicação Clara e Sucinta -->
+          <div class="fwd-clean-insight ${hasActive ? 'active' : (fwdA.unresolvedHazard || fwdB.unresolvedHazard ? 'hazard' : 'normal')}">
+            <div class="insight-text">
               ${hasActive ? `
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">1</div>
-                  <div class="fwd-step-content">
-                    <strong>Necessidade de Dados:</strong> A instrucao no estagio EX (<code>${cur.EX.label}</code>) necessita dos dados dos registradores para realizar o calculo na ULA agora no Ciclo ${cycle}.
-                  </div>
-                </div>
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">2</div>
-                  <div class="fwd-step-content">
-                    <strong>Detecção de Dependência:</strong> ${fwdA.active ? fwdA.why : ''} ${fwdB.active ? fwdB.why : ''}
-                  </div>
-                </div>
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">3</div>
-                  <div class="fwd-step-content">
-                    <strong>Atalho de Hardware (Forwarding):</strong> A Unidade de Forwarding ajustou os sinais de controle dos multiplexadores (${fwdA.active ? `ForwardA = ${fwdA.signal}` : ''} ${fwdB.active ? `ForwardB = ${fwdB.signal}` : ''}), desviando o dado dos registradores de pipeline diretamente para a ULA antes da escrita no banco.
-                  </div>
-                </div>
-                <div class="fwd-compare-box">
-                  <span>Comparativo de Valores:</span>
-                  ${fwdA.active ? `
-                    <div class="fwd-compare-val stale">Banco (ID/EX): ${fwdA.staleVal} (desatualizado)</div>
-                    <div class="fwd-compare-val fresh">Fio (${fwdA.from}): ${fwdA.freshVal} (correto)</div>
-                  ` : ''}
-                  ${fwdB.active ? `
-                    <div class="fwd-compare-val stale">Banco (ID/EX): ${fwdB.staleVal} (desatualizado)</div>
-                    <div class="fwd-compare-val fresh">Fio (${fwdB.from}): ${fwdB.freshVal} (correto)</div>
-                  ` : ''}
-                </div>
+                <strong>Adiantamento em Acao:</strong> ${fwdA.active ? `O registrador <code>${fwdA.reg}</code> foi adiantado de <code>${fwdA.from}</code> para a Entrada A da ULA.` : ''} ${fwdB.active ? `O registrador <code>${fwdB.reg}</code> foi adiantado de <code>${fwdB.from}</code> para a Entrada B da ULA.` : ''} A instrucao executa no ciclo correto sem necessitar de bolhas.
               ` : (isEnabled ? `
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">1</div>
-                  <div class="fwd-step-content">
-                    <strong>Operacao Normal sem Conflitos:</strong> No Ciclo ${cycle}, a instrucao no estagio EX (${cur.EX.empty ? 'nenhuma' : '<code>' + cur.EX.label + '</code>'}) nao depende de resultados pendentes nos estagios MEM ou WB.
-                  </div>
-                </div>
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">2</div>
-                  <div class="fwd-step-content">
-                    <strong>Sinais em Repouso:</strong> Os multiplexadores estao em <code>ForwardA = 00</code> e <code>ForwardB = 00</code>. Os operandos sao supridos normalmente pelo Banco de Registradores lido na fase ID.
-                  </div>
-                </div>
+                <strong>Operacao Padrao:</strong> Sem dependencias pendentes neste ciclo. Os multiplexadores enviam a leitura comum do Banco de Registradores diretamente para a ULA.
               ` : `
-                <div class="fwd-step-item">
-                  <div class="fwd-step-num">!</div>
-                  <div class="fwd-step-content">
-                    <strong style="color:#f87171;">Adiantamento de Hardware Desativado:</strong> Os multiplexadores estao travados em <code>ForwardA = 00</code> e <code>ForwardB = 00</code>.
-                    ${fwdA.unresolvedHazard ? `<p style="color:#fca5a5; margin:4px 0 0 0;">${fwdA.hazardExplanation}</p>` : ''}
-                    ${fwdB.unresolvedHazard ? `<p style="color:#fca5a5; margin:4px 0 0 0;">${fwdB.hazardExplanation}</p>` : ''}
-                    ${!fwdA.unresolvedHazard && !fwdB.unresolvedHazard ? '<p style="margin:4px 0 0 0;">Nenhum conflito imediato neste ciclo, mas dependencias exigirao bolhas manuais para execucao correta.</p>' : ''}
-                  </div>
-                </div>
+                <strong>Forwarding Desativado:</strong> Multiplexadores fixos em 00. ${fwdA.unresolvedHazard || fwdB.unresolvedHazard ? 'Conflito RAW detectado! Sem bolhas inseridas, o calculo usara valores antigos.' : 'Nenhum conflito imediato neste ciclo.'}
               `)}
             </div>
+            <button id="btnToggleFwdCode" class="fwd-clean-toggle" title="Ver equacoes e codigo em C da prova">
+              <span>Ver Codigo em C da Prova</span>
+              <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
 
-            <!-- Codigo em C da Prova 2 UFSM (Opcional Expansivel) -->
-            <div id="fwdCodeBox" class="fwd-c-logic-box" style="display:none;">
-              <div class="fwd-c-code">/* Unidade de Forwarding (UFSM / Patterson & Hennessy) */
+          <!-- Codigo em C da Prova 2 UFSM (Opcional Expansivel) -->
+          <div id="fwdCodeBox" class="fwd-c-logic-box" style="display:none;">
+            <div class="fwd-c-code">/* Unidade de Forwarding (UFSM / Patterson & Hennessy) */
 // 1. Hazard EX (1 ciclo de distancia):
 if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) {
     ForwardA = 0b10; // Adiantamento de EX/MEM -> Entrada A da ULA
@@ -1876,7 +1834,6 @@ if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
     (MEM_WB.RegisterRd == ID_EX.RegisterRt)) {
     ForwardB = 0b01; // Adiantamento de MEM/WB -> Entrada B da ULA
 }</div>
-            </div>
           </div>
         </div>
       `;

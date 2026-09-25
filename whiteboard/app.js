@@ -7044,6 +7044,15 @@ Object.defineProperty(window, 'elements', {
   set: (val) => { elements = val; },
   configurable: true
 });
+Object.defineProperty(window, 'selectedElements', {
+  get: () => selectedElements,
+  set: (val) => {
+    selectedElements = Array.isArray(val) ? val : [];
+    selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+    renderOverlay();
+  },
+  configurable: true
+});
 window.screenToCanvas = screenToCanvas;
 window.canvasToScreen = canvasToScreen;
 window.render = render;
@@ -7053,8 +7062,21 @@ window.scheduleAutoSave = scheduleAutoSave;
 window.broadcastElementAdd = broadcastElementAdd;
 window.broadcastBoardSync = broadcastBoardSync;
 window.sendWsMessage = sendWsMessage;
+window.setActiveTool = setActiveTool;
 
-window.addElementsToBoard = function(newElementsList) {
+window.getViewCenter = function() {
+  const w = (wrapper && wrapper.clientWidth) ? wrapper.clientWidth : (width || window.innerWidth);
+  const h = (wrapper && wrapper.clientHeight) ? wrapper.clientHeight : (height || window.innerHeight);
+  return screenToCanvas(w / 2, h / 2);
+};
+
+window.setSelectedElements = function(newSelection) {
+  selectedElements = Array.isArray(newSelection) ? [...newSelection] : [];
+  selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+  renderOverlay();
+};
+
+window.addElementsToBoard = function(newElementsList, autoSelect = true) {
   if (!Array.isArray(newElementsList) || newElementsList.length === 0) return;
   recordState();
   newElementsList.forEach(el => {
@@ -7067,9 +7089,17 @@ window.addElementsToBoard = function(newElementsList) {
       broadcastElementAdd(el);
     }
   });
+  if (autoSelect) {
+    selectedElements = [...newElementsList];
+    selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+    if (typeof setActiveTool === 'function') {
+      setActiveTool('select');
+    }
+  }
   render();
   scheduleAutoSave();
   broadcastBoardSync();
 };
+
 
 

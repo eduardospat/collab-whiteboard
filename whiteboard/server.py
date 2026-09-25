@@ -614,6 +614,17 @@ try:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def add_no_cache_headers(request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.endswith((".js", ".css", ".html", ".json")) or path == "/":
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
     @app.get("/api/network-info")
     async def api_network_info():
         ip = get_local_ip()
