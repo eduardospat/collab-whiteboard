@@ -117,7 +117,8 @@
     isPlaying: false,
     playSpeedMs: 1200,
     timerId: null,
-    activeTab: 'datapath', // 'datapath', 'matrix', 'editor', 'theory'
+    activeTab: 'simulator', // 'simulator', 'editor', 'theory'
+    showFwdDetails: false,
     schedule: [], // Array de cronogramas por instrucao
     hazards: [],
     registers: {},
@@ -1181,144 +1182,120 @@
 
     modal.innerHTML = `
       <div class="pipeline-modal-card" id="pipelineModalCard">
-        <!-- Top Header -->
-        <div class="pipeline-header">
-          <div class="pipeline-title-group">
-            <div class="pipeline-badge-title">
+        <!-- Top Bar Compacta & Moderna -->
+        <header class="pipeline-topbar">
+          <div class="topbar-section left">
+            <div class="pipeline-brand" title="Simulador de Pipeline MIPS 5 Estagios">
               <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="6" y1="8" x2="6" y2="12"/><line x1="10" y1="8" x2="10" y2="12"/><line x1="14" y1="8" x2="14" y2="12"/><line x1="18" y1="8" x2="18" y2="12"/></svg>
-              <h2>Simulador de Pipeline MIPS · 5 Estagios</h2>
+              <span class="pipeline-brand-name">Pipeline MIPS</span>
             </div>
-            <span class="pipeline-sync-badge">Sincronizado na Sessao</span>
-          </div>
-          <div class="pipeline-window-controls">
-            <button id="btnPipelineExportCanvas" class="pipeline-action-btn secondary" title="Desenhar diagrama diretamente no quadro branco">
-              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-              <span>Copiar para o Quadro</span>
-            </button>
-            <button id="btnPipelineClose" class="pipeline-close-btn" title="Fechar simulador">&times;</button>
-          </div>
-        </div>
 
-        <!-- Toolbar Superior de Controle -->
-        <div class="pipeline-toolbar">
-          <div class="pipeline-toolbar-left">
-            <div class="pipeline-control-item">
-              <label for="pipelineScenarioSelect">Cenario / Exercicio:</label>
-              <select id="pipelineScenarioSelect" class="pipeline-select">
-                <option value="raw_classic">Slide 41: Hazard RAW Classico (sub / and / or)</option>
-                <option value="load_use">Slide 71: Hazard Load-Use (lw seguido de and)</option>
-                <option value="loop_exam">Slide 180: Exercicio de Prova (Loads & Stores)</option>
-                <option value="branch_hazard">Slide 98: Hazard de Controle (Desvio BEQ)</option>
+            <div class="topbar-scenario">
+              <select id="pipelineScenarioSelect" class="pipeline-select" title="Selecionar cenario ou exercicio">
+                <option value="raw_classic">Slide 41: RAW Classico (sub / and / or)</option>
+                <option value="load_use">Slide 71: Load-Use (lw seguido de and)</option>
+                <option value="loop_exam">Slide 180: Prova 2 (Loads & Stores)</option>
+                <option value="branch_hazard">Slide 98: Controle (Desvio BEQ)</option>
                 <option value="ideal_clean">Execucao Ideal sem Hazards</option>
                 <option value="custom">Personalizado (Editor Livre)</option>
               </select>
             </div>
 
-            <div class="pipeline-control-item">
-              <button id="btnPipelineForwardingToggle" class="pipeline-toggle-btn" title="Alternar Adiantamento de Hardware">
-                <span class="toggle-indicator" id="forwardingIndicator"></span>
-                <span id="forwardingBtnText">Adiantamento: Desligado</span>
+            <nav class="pipeline-nav-tabs">
+              <button class="pipeline-tab-btn active" data-tab="simulator">Simulador</button>
+              <button class="pipeline-tab-btn" data-tab="editor">Editor</button>
+              <button class="pipeline-tab-btn" data-tab="theory">Teoria</button>
+            </nav>
+          </div>
+
+          <!-- Controle Central de Ciclos -->
+          <div class="topbar-section center">
+            <div class="pipeline-player">
+              <button id="btnPipelinePrev" class="pipeline-step-btn" title="Ciclo Anterior (Seta Esquerda)">
+                <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div class="pipeline-cycle-counter" title="Ciclo atual de clock">
+                <span class="cycle-label">Ciclo</span>
+                <span class="cycle-val" id="pipelineCurrentCycleText">0</span>
+                <span class="cycle-total" id="pipelineTotalCyclesText">/ 5</span>
+              </div>
+              <button id="btnPipelineNext" class="pipeline-step-btn primary" title="Proximo Ciclo (Seta Direita / Espaco)">
+                <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button id="btnPipelinePlay" class="pipeline-step-btn" title="Execucao Automatica">
+                <svg id="pipelinePlayIcon" class="ui-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button id="btnPipelineReset" class="pipeline-step-btn" title="Reiniciar para Ciclo 0 (Tecla R)">
+                <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               </button>
             </div>
           </div>
 
-          <!-- Botoes de Passo de Ciclo -->
-          <div class="pipeline-toolbar-center">
-            <button id="btnPipelinePrev" class="pipeline-step-btn" title="Ciclo Anterior (Seta Esquerda)">
-              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          <!-- Acoes Direita -->
+          <div class="topbar-section right">
+            <button id="btnPipelineForwardingToggle" class="pipeline-toggle-btn" title="Alternar Adiantamento (Forwarding)">
+              <span class="toggle-indicator" id="forwardingIndicator"></span>
+              <span id="forwardingBtnText">Forwarding: Desligado</span>
             </button>
-            <div class="pipeline-cycle-counter">
-              <span class="cycle-label">Ciclo</span>
-              <span class="cycle-val" id="pipelineCurrentCycleText">0</span>
-              <span class="cycle-total" id="pipelineTotalCyclesText">/ 5</span>
+
+            <div class="pipeline-bubble-btns">
+              <button id="btnPipelineQuickBubble" class="pipeline-action-btn warning small" title="Inserir bolha ou arraste para a tabela">
+                <span>+ Bolha</span>
+              </button>
+              <button id="btnPipelineRemoveBubble" class="pipeline-action-btn danger small" title="Remover a ultima bolha inserida">
+                <span>- Bolha</span>
+              </button>
             </div>
-            <button id="btnPipelineNext" class="pipeline-step-btn primary" title="Proximo Ciclo (Seta Direita / Espaco)">
-              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+
+            <button id="btnPipelineExportCanvas" class="pipeline-action-btn secondary small" title="Desenhar diagrama diretamente no quadro branco">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+              <span>Quadro</span>
             </button>
-            <button id="btnPipelinePlay" class="pipeline-step-btn" title="Execucao Automatica">
-              <svg id="pipelinePlayIcon" class="ui-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            </button>
-            <button id="btnPipelineReset" class="pipeline-step-btn" title="Reiniciar para o Ciclo 0">
-              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-            </button>
+
+            <button id="btnPipelineClose" class="pipeline-close-btn" title="Fechar">&times;</button>
           </div>
+        </header>
 
-          <div class="pipeline-toolbar-right">
-            <button id="btnPipelineQuickBubble" class="pipeline-action-btn warning" title="Inserir uma bolha imediatamente no programa">
-              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span>+ Inserir Bolha</span>
-            </button>
-            <button id="btnPipelineRemoveBubble" class="pipeline-action-btn danger" title="Remover a ultima bolha inserida">
-              <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              <span>- Remover Bolha</span>
-            </button>
-          </div>
-        </div>
+        <!-- Faixa Alerta de Hazard (Aparece somente quando ha conflito detectado) -->
+        <div id="pipelineHazardBanner" class="pipeline-hazard-strip" style="display:none;"></div>
 
-        <!-- Banner de Diagnostico de Hazards / Alertas Educativos -->
-        <div id="pipelineHazardBanner" class="pipeline-hazard-banner">
-          <!-- Atualizado via JS -->
-        </div>
-
-        <!-- Abas de Navegacao -->
-        <div class="pipeline-tabs">
-          <button class="pipeline-tab-btn active" data-tab="datapath">Datapath dos 5 Estagios</button>
-          <button class="pipeline-tab-btn" data-tab="matrix">Tabela Espaco-Tempo (Ciclos x Instrucoes)</button>
-          <button class="pipeline-tab-btn" data-tab="editor">Editor de Instrucoes & Bolhas</button>
-          <button class="pipeline-tab-btn" data-tab="theory">Teoria & Resumo da Aula</button>
-        </div>
-
-        <!-- Conteudo das Abas -->
+        <!-- Conteudo Principal -->
         <div class="pipeline-body">
-          <!-- Aba 1: Datapath dos 5 Estagios Físicos -->
-          <div id="tabDatapath" class="pipeline-tab-pane active">
-            <div class="pipeline-datapath-container">
-              <div class="datapath-flow" id="datapathFlow">
-                <!-- 5 Caixas dos Estagios construidas dinamicamente -->
-              </div>
-              <div id="forwardingWires" class="forwarding-wires-box">
-                <!-- Fios de Adiantamento ativos -->
-              </div>
+          <!-- Aba 1: Simulador Completo (5 Estagios + Forwarding + Tabela Espaco-Tempo) -->
+          <div id="tabSimulator" class="pipeline-tab-pane active">
+            <!-- 5 Estagios Fisicos -->
+            <div class="pipeline-stages-container">
+              <div class="datapath-flow" id="datapathFlow"></div>
             </div>
 
-            <!-- Painel de Registradores Virtuais -->
-            <div class="pipeline-regs-panel">
-              <div class="regs-panel-header">
-                <h3>Banco de Registradores Virtuais (Valores no Ciclo Atual)</h3>
-                <span class="regs-tip">Atualizado no fim do estagio WB</span>
+            <!-- Fios e Status do Forwarding -->
+            <div id="forwardingWires" class="forwarding-status-container"></div>
+
+            <!-- Matriz Espaco-Tempo Integrada -->
+            <div class="pipeline-matrix-section">
+              <div class="matrix-controls-bar">
+                <div class="matrix-legend-row">
+                  <span class="legend-badge if">IF: Busca</span>
+                  <span class="legend-badge id">ID: Decodificacao</span>
+                  <span class="legend-badge ex">EX: Execucao</span>
+                  <span class="legend-badge mem">MEM: Memoria</span>
+                  <span class="legend-badge wb">WB: Gravacao</span>
+                  <span class="legend-badge stall">BOLHA / STALL</span>
+                </div>
+                <div class="matrix-actions-buttons">
+                  <button id="btnPipelineAutoResolve" class="pipeline-action-btn secondary small" title="Adiciona bolhas automaticamente onde necessario">
+                    Resolver Conflitos com Bolhas
+                  </button>
+                  <button id="btnPipelineClearAllBubbles" class="pipeline-action-btn secondary small" title="Remove todas as bolhas do programa">
+                    Limpar Bolhas
+                  </button>
+                </div>
               </div>
-              <div class="regs-grid" id="pipelineRegsGrid">
-                <!-- Valores preenchidos dinamicamente -->
-              </div>
+              <div class="pipeline-matrix-scroller" id="pipelineMatrixContainer"></div>
             </div>
           </div>
 
-          <!-- Aba 2: Tabela Espaco-Tempo -->
-          <div id="tabMatrix" class="pipeline-tab-pane">
-            <div class="matrix-controls-bar">
-              <span>Legenda: 
-                <span class="legend-badge if">IF: Busca</span>
-                <span class="legend-badge id">ID: Decodificacao</span>
-                <span class="legend-badge ex">EX: Execucao</span>
-                <span class="legend-badge mem">MEM: Memoria</span>
-                <span class="legend-badge wb">WB: Gravacao</span>
-                <span class="legend-badge stall">BOLHA / STALL</span>
-              </span>
-              <div class="matrix-controls-buttons">
-                <button id="btnPipelineAutoResolve" class="pipeline-action-btn secondary small" title="Adiciona bolhas automaticamente nas posicoes necessarias">
-                  Resolver Conflitos com Bolhas
-                </button>
-                <button id="btnPipelineClearAllBubbles" class="pipeline-action-btn secondary small" title="Remove todas as bolhas do programa">
-                  Limpar Todas as Bolhas
-                </button>
-              </div>
-            </div>
-            <div class="pipeline-matrix-scroller" id="pipelineMatrixContainer">
-              <!-- Matriz dinamica -->
-            </div>
-          </div>
-
-          <!-- Aba 3: Editor de Instrucoes -->
+          <!-- Aba 2: Editor de Instrucoes -->
           <div id="tabEditor" class="pipeline-tab-pane">
             <div class="editor-layout">
               <div class="editor-form-card">
@@ -1357,19 +1334,17 @@
 
               <div class="editor-list-card">
                 <h3>Programa Atual (<span id="programInstCount">0</span> instrucoes)</h3>
-                <div class="program-list" id="pipelineProgramList">
-                  <!-- Lista dinamica com botoes de bolha e remover -->
-                </div>
+                <div class="program-list" id="pipelineProgramList"></div>
               </div>
             </div>
           </div>
 
-          <!-- Aba 4: Teoria & Resumo da Aula -->
+          <!-- Aba 3: Teoria & Resumo da Aula -->
           <div id="tabTheory" class="pipeline-tab-pane">
             <div class="theory-content">
               <h3>Resumo do Pipeline MIPS de 5 Estagios (Prof. Mateus Beck)</h3>
               <p>O pipelining e uma tecnica de implementacao em que multiplas instrucoes sao sobrepostas em execucao simultanea, divididas em estagios independentes desacoplados por registradores de pipeline:</p>
-              
+
               <div class="theory-stages-cards">
                 <div class="theory-card">
                   <div class="theory-card-head if">1. IF - Busca (Instruction Fetch)</div>
@@ -1403,29 +1378,20 @@
           </div>
         </div>
 
-        <!-- Barra Inferior de Metricas de Desempenho -->
-        <div class="pipeline-footer-metrics">
-          <div class="metric-item">
-            <span class="metric-label">Instrucoes Uteis:</span>
-            <span class="metric-val" id="metricInstCount">0</span>
+        <!-- Barra Inferior Compacta: Registradores Virtuais + Metricas -->
+        <footer class="pipeline-footer-bar">
+          <div class="footer-regs-group">
+            <span class="footer-regs-lbl">Banco de Registradores:</span>
+            <div class="regs-grid" id="pipelineRegsGrid"></div>
           </div>
-          <div class="metric-item">
-            <span class="metric-label">Ciclos Totais:</span>
-            <span class="metric-val" id="metricCycleCount">0</span>
+          <div class="footer-metrics-group">
+            <div class="metric-item"><span class="metric-label">Instrucoes:</span> <strong class="metric-val" id="metricInstCount">0</strong></div>
+            <div class="metric-item"><span class="metric-label">Ciclos:</span> <strong class="metric-val" id="metricCycleCount">0</strong></div>
+            <div class="metric-item"><span class="metric-label">Bolhas:</span> <strong class="metric-val" id="metricBubbleCount">0</strong></div>
+            <div class="metric-item highlight"><span class="metric-label">CPI:</span> <strong class="metric-val" id="metricCpi">1.00</strong></div>
+            <div class="metric-item"><span class="metric-label">Speedup:</span> <strong class="metric-val" id="metricSpeedup">~4.0x</strong></div>
           </div>
-          <div class="metric-item">
-            <span class="metric-label">Bolhas / Stalls:</span>
-            <span class="metric-val" id="metricBubbleCount">0</span>
-          </div>
-          <div class="metric-item highlight">
-            <span class="metric-label">CPI (Ciclos Por Instrucao):</span>
-            <span class="metric-val" id="metricCpi">1.00</span>
-          </div>
-          <div class="metric-item">
-            <span class="metric-label">Speedup vs Monociclo:</span>
-            <span class="metric-val" id="metricSpeedup">~4.2x</span>
-          </div>
-        </div>
+        </footer>
       </div>
     `;
 
@@ -1668,31 +1634,12 @@
     if (!banner) return;
 
     if (state.hazards.length === 0) {
-      const hasBubbles = state.instructions.some(i => i.isBubble);
-      banner.className = 'pipeline-hazard-banner success';
-      banner.innerHTML = `
-        <div class="hazard-icon">
-          <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div class="hazard-info">
-          <strong>Nenhum Hazard Detectado!</strong>
-          <span>O programa executa com integridade de dados ${state.forwardingEnabled ? 'utilizando Adiantamento (Forwarding)' : (hasBubbles ? 'atraves das bolhas inseridas' : 'sem necessidade de bolhas')}.</span>
-        </div>
-        ${hasBubbles ? `
-        <div class="hazard-action">
-          <button id="btnBannerClearBubbles" class="pipeline-action-btn secondary small" title="Remover todas as bolhas para testar novamente">Remover Bolhas</button>
-        </div>
-        ` : ''}
-      `;
-      const btnClear = document.getElementById('btnBannerClearBubbles');
-      if (btnClear) {
-        btnClear.addEventListener('click', () => {
-          removeAllBubbles(true);
-        });
-      }
+      banner.style.display = 'none';
+      banner.innerHTML = '';
     } else {
       const h = state.hazards[0];
-      banner.className = 'pipeline-hazard-banner warning';
+      banner.style.display = 'flex';
+      banner.className = 'pipeline-hazard-strip warning';
       banner.innerHTML = `
         <div class="hazard-icon">
           <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -1701,8 +1648,9 @@
           <strong>Conflito Detectado (${h.type}):</strong>
           <span>${h.explanation}</span>
         </div>
-        <div class="hazard-action">
+        <div class="hazard-actions">
           <button id="btnBannerFix" class="pipeline-action-btn primary small">Inserir ${h.diff} Bolha(s)</button>
+          ${!state.forwardingEnabled ? '<button id="btnBannerEnableFwd" class="pipeline-action-btn secondary small">Ativar Forwarding</button>' : ''}
         </div>
       `;
       const btnFix = document.getElementById('btnBannerFix');
@@ -1718,6 +1666,10 @@
             forwardingEnabled: state.forwardingEnabled
           });
         });
+      }
+      const btnEnableFwd = document.getElementById('btnBannerEnableFwd');
+      if (btnEnableFwd) {
+        btnEnableFwd.addEventListener('click', toggleForwarding);
       }
     }
   }
@@ -1741,14 +1693,26 @@
       if (isBubble) cardClass += ' bubble';
       if (isEmpty) cardClass += ' empty';
 
+      let stageBadgeExtra = '';
+      if (st === 'EX') {
+        if (state.forwardingEnabled && (cur.forwardA && cur.forwardA.active || cur.forwardB && cur.forwardB.active)) {
+          stageBadgeExtra = '<span class="stage-fwd-tag active">FWD</span>';
+        } else if (!state.forwardingEnabled && (cur.forwardA && cur.forwardA.unresolvedHazard || cur.forwardB && cur.forwardB.unresolvedHazard)) {
+          stageBadgeExtra = '<span class="stage-fwd-tag hazard">RAW</span>';
+        }
+      }
+
       html += `
         <div class="${cardClass}" style="border-top-color: ${cfg.color}">
-          <div class="stage-tag" style="background:${cfg.bg}; color:${cfg.text}">${cfg.label}</div>
-          <div class="stage-name">${cfg.name.split('(')[0]}</div>
+          <div class="stage-card-header">
+            <span class="stage-tag" style="background:${cfg.bg}; color:${cfg.text}">${cfg.label}</span>
+            <span class="stage-name">${cfg.name.split('(')[0]}</span>
+            ${stageBadgeExtra}
+          </div>
           <div class="stage-instruction-box">
             <span class="inst-label">${isBubble ? 'STALL / BOLHA' : (info ? info.label : '--')}</span>
           </div>
-          <div class="stage-subtext">${isEmpty ? 'Inativo no ciclo' : (isBubble ? 'Sinais zerados' : 'Processando')}</div>
+          <div class="stage-subtext">${isEmpty ? 'Inativo no ciclo' : (isBubble ? 'Sinais zerados' : 'Executando')}</div>
         </div>
       `;
 
@@ -1767,7 +1731,7 @@
 
     flow.innerHTML = html;
 
-    // Inspetor Didatico de Forwarding (Design Limpo e Intuitivo)
+    // Status Dinamico de Forwarding (Compacto por padrao, expansivel sob demanda)
     if (wires) {
       const fwdA = cur.forwardA || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
       const fwdB = cur.forwardB || { active: false, signal: '00', from: 'ID/EX', reg: '', freshVal: null, staleVal: null };
@@ -1775,156 +1739,142 @@
       const isEnabled = state.forwardingEnabled;
       const cycle = state.currentCycle;
 
-      let statusClass = 'disabled';
-      let statusText = 'Forwarding Desativado';
+      let statusPillClass = 'idle';
+      let statusPillText = 'Operacao Padrao';
+      let statusDetail = 'Entradas da ULA vêm da leitura normal em ID/EX (ForwardA = 00, ForwardB = 00).';
+
       if (isEnabled) {
         if (hasActive) {
-          statusClass = 'active';
-          statusText = `Adiantamento Ativo no Ciclo C${cycle}`;
+          statusPillClass = 'active';
+          statusPillText = `Adiantamento Ativo (Ciclo C${cycle})`;
+          const parts = [];
+          if (fwdA.active) parts.push(`Entrada A (${fwdA.reg}): adiantado de <strong>${fwdA.from}</strong> (valor: <code>${fwdA.freshVal}</code>, ForwardA = <strong>${fwdA.signal}</strong>)`);
+          if (fwdB.active) parts.push(`Entrada B (${fwdB.reg}): adiantado de <strong>${fwdB.from}</strong> (valor: <code>${fwdB.freshVal}</code>, ForwardB = <strong>${fwdB.signal}</strong>)`);
+          statusDetail = parts.join(' &middot; ');
         } else {
-          statusClass = 'idle';
-          statusText = `Sem Conflito no Ciclo C${cycle} (00, 00)`;
+          statusPillClass = 'idle';
+          statusPillText = 'Forwarding Ativado';
+          statusDetail = 'Nenhum conflito neste ciclo. Multiplexadores em repouso (ForwardA = 00, ForwardB = 00).';
         }
-      } else if (fwdA.unresolvedHazard || fwdB.unresolvedHazard) {
-        statusClass = 'disabled';
-        statusText = `Hazard RAW Ativo (Sem Forwarding!)`;
+      } else {
+        if (fwdA.unresolvedHazard || fwdB.unresolvedHazard) {
+          statusPillClass = 'hazard';
+          statusPillText = `Hazard RAW Ativo (Ciclo C${cycle})`;
+          statusDetail = 'A instrucao em EX precisa de registrador ainda nao gravado. Sem Forwarding, a ULA computara com dado defasado!';
+        } else {
+          statusPillClass = 'disabled';
+          statusPillText = 'Forwarding Desativado';
+          statusDetail = 'Circuito de adiantamento desligado. Multiplexadores fixos em 00.';
+        }
       }
 
       let wireHtml = `
-        <div class="forwarding-clean-container">
-          <!-- Barra Superior: Titulo e Estados dos Sinais -->
-          <div class="fwd-summary-bar">
-            <div class="fwd-title-area">
-              <span class="fwd-chip-label">Forwarding Unit</span>
-              <span class="fwd-cycle-text">Ciclo <strong>C${cycle}</strong> &middot; Instrucao EX: <code>${cur.EX && !cur.EX.empty ? cur.EX.label : 'Nenhuma'}</code></span>
-            </div>
-            <div class="fwd-signals-group">
-              <span class="fwd-signal-badge ${fwdA.active ? 'active' : ''}">ForwardA: <strong>${fwdA.signal}</strong> (${fwdA.from})</span>
-              <span class="fwd-signal-badge ${fwdB.active ? 'active' : ''}">ForwardB: <strong>${fwdB.signal}</strong> (${fwdB.from})</span>
-              <span class="fwd-status-pill ${statusClass}">${statusText}</span>
-            </div>
+        <div class="fwd-status-bar ${statusPillClass}">
+          <div class="fwd-status-left">
+            <span class="fwd-status-pill ${statusPillClass}">${statusPillText}</span>
+            <div class="fwd-status-text">${statusDetail}</div>
           </div>
-
-          <!-- Esquemático dos Multiplexadores da ULA -->
-          <div class="fwd-hardware-grid">
-            <!-- Mux A (Operando Rs) -->
-            <div class="fwd-mux-block ${fwdA.active ? 'active' : ''}">
-              <div class="mux-block-header">
-                <span class="mux-tag">MUX A</span>
-                <span class="mux-reg-target">Entrada Rs: <code>${fwdA.reg || '--'}</code></span>
-                <span class="mux-sig-value">Sinal: <strong>ForwardA = ${fwdA.signal}</strong></span>
-              </div>
-              <div class="mux-sources-row">
-                <div class="mux-source-pill ${fwdA.signal === '00' ? 'selected' : 'dimmed'}">
-                  <span class="sig-num">00</span>
-                  <span class="sig-name">Banco ID/EX</span>
-                  <span class="sig-val">${fwdA.staleVal !== null ? fwdA.staleVal : '--'}</span>
-                </div>
-                <div class="mux-source-pill ${fwdA.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
-                  <span class="sig-num">10</span>
-                  <span class="sig-name">Fio EX/MEM (1 ciclo)</span>
-                  <span class="sig-val">${fwdA.signal === '10' ? fwdA.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
-                </div>
-                <div class="mux-source-pill ${fwdA.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
-                  <span class="sig-num">01</span>
-                  <span class="sig-name">Fio MEM/WB (2 ciclos)</span>
-                  <span class="sig-val">${fwdA.signal === '01' ? fwdA.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
-                </div>
-              </div>
-              <div class="mux-output-wire ${fwdA.active ? 'wire-active' : ''}">
-                <span>Saida Mux A &rarr; Entrada Superior da ULA:</span>
-                <strong class="wire-val">${fwdA.active ? fwdA.freshVal : (fwdA.staleVal !== null ? fwdA.staleVal : '--')}</strong>
-                ${fwdA.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
-                ${fwdA.unresolvedHazard ? '<span class="wire-hazard">Dado Defasado (RAW)!</span>' : ''}
-              </div>
-            </div>
-
-            <!-- Mux B (Operando Rt) -->
-            <div class="fwd-mux-block ${fwdB.active ? 'active' : ''}">
-              <div class="mux-block-header">
-                <span class="mux-tag">MUX B</span>
-                <span class="mux-reg-target">Entrada Rt: <code>${fwdB.reg || '--'}</code></span>
-                <span class="mux-sig-value">Sinal: <strong>ForwardB = ${fwdB.signal}</strong></span>
-              </div>
-              <div class="mux-sources-row">
-                <div class="mux-source-pill ${fwdB.signal === '00' ? 'selected' : 'dimmed'}">
-                  <span class="sig-num">00</span>
-                  <span class="sig-name">Banco ID/EX</span>
-                  <span class="sig-val">${fwdB.staleVal !== null ? fwdB.staleVal : '--'}</span>
-                </div>
-                <div class="mux-source-pill ${fwdB.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
-                  <span class="sig-num">10</span>
-                  <span class="sig-name">Fio EX/MEM (1 ciclo)</span>
-                  <span class="sig-val">${fwdB.signal === '10' ? fwdB.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
-                </div>
-                <div class="mux-source-pill ${fwdB.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
-                  <span class="sig-num">01</span>
-                  <span class="sig-name">Fio MEM/WB (2 ciclos)</span>
-                  <span class="sig-val">${fwdB.signal === '01' ? fwdB.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
-                </div>
-              </div>
-              <div class="mux-output-wire ${fwdB.active ? 'wire-active' : ''}">
-                <span>Saida Mux B &rarr; Entrada Inferior da ULA:</span>
-                <strong class="wire-val">${fwdB.active ? fwdB.freshVal : (fwdB.staleVal !== null ? fwdB.staleVal : '--')}</strong>
-                ${fwdB.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
-                ${fwdB.unresolvedHazard ? '<span class="wire-hazard">Dado Defasado (RAW)!</span>' : ''}
-              </div>
-            </div>
-          </div>
-
-          <!-- Didática Direta: Explicação Clara e Sucinta -->
-          <div class="fwd-clean-insight ${hasActive ? 'active' : (fwdA.unresolvedHazard || fwdB.unresolvedHazard ? 'hazard' : 'normal')}">
-            <div class="insight-text">
-              ${hasActive ? `
-                <strong>Adiantamento em Acao:</strong> ${fwdA.active ? `O registrador <code>${fwdA.reg}</code> foi adiantado de <code>${fwdA.from}</code> para a Entrada A da ULA.` : ''} ${fwdB.active ? `O registrador <code>${fwdB.reg}</code> foi adiantado de <code>${fwdB.from}</code> para a Entrada B da ULA.` : ''} A instrucao executa no ciclo correto sem necessitar de bolhas.
-              ` : (isEnabled ? `
-                <strong>Operacao Padrao:</strong> Sem dependencias pendentes neste ciclo. Os multiplexadores enviam a leitura comum do Banco de Registradores diretamente para a ULA.
-              ` : `
-                <strong>Forwarding Desativado:</strong> Multiplexadores fixos em 00. ${fwdA.unresolvedHazard || fwdB.unresolvedHazard ? 'Conflito RAW detectado! Sem bolhas inseridas, o calculo usara valores antigos.' : 'Nenhum conflito imediato neste ciclo.'}
-              `)}
-            </div>
-            <button id="btnToggleFwdCode" class="fwd-clean-toggle" title="Ver equacoes e codigo em C da prova">
-              <span>Ver Codigo em C da Prova</span>
-              <svg class="ui-icon chevron-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          <div class="fwd-status-right">
+            ${(!isEnabled && (fwdA.unresolvedHazard || fwdB.unresolvedHazard)) ? `
+              <button id="btnFwdQuickEnable" class="pipeline-action-btn primary small">Ativar Forwarding</button>
+            ` : ''}
+            <button id="btnToggleFwdDetails" class="fwd-details-toggle" title="Alternar visualizacao dos multiplexadores e codigo C">
+              <span>${state.showFwdDetails ? 'Ocultar Multiplexadores' : 'Ver Multiplexadores & Codigo C'}</span>
+              <svg class="ui-icon" viewBox="0 0 24 24"><polyline points="${state.showFwdDetails ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}"/></svg>
             </button>
-          </div>
-
-          <!-- Codigo em C da Prova 2 UFSM (Opcional Expansivel) -->
-          <div id="fwdCodeBox" class="fwd-c-logic-box" style="display:none;">
-            <div class="fwd-c-code">/* Unidade de Forwarding (UFSM / Patterson & Hennessy) */
-// 1. Hazard EX (1 ciclo de distancia):
-if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) {
-    ForwardA = 0b10; // Adiantamento de EX/MEM -> Entrada A da ULA
-}
-if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) {
-    ForwardB = 0b10; // Adiantamento de EX/MEM -> Entrada B da ULA
-}
-
-// 2. Hazard MEM (2 ciclos de distancia):
-if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
-    !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) &&
-    (MEM_WB.RegisterRd == ID_EX.RegisterRs)) {
-    ForwardA = 0b01; // Adiantamento de MEM/WB -> Entrada A da ULA
-}
-if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
-    !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) &&
-    (MEM_WB.RegisterRd == ID_EX.RegisterRt)) {
-    ForwardB = 0b01; // Adiantamento de MEM/WB -> Entrada B da ULA
-}</div>
           </div>
         </div>
       `;
 
+      if (state.showFwdDetails) {
+        wireHtml += `
+          <div class="fwd-expanded-panel">
+            <div class="fwd-hardware-grid">
+              <!-- Mux A -->
+              <div class="fwd-mux-block ${fwdA.active ? 'active' : ''}">
+                <div class="mux-block-header">
+                  <span class="mux-tag">MUX A (Rs: <code>${fwdA.reg || '--'}</code>)</span>
+                  <span class="mux-sig-value">Sinal: <strong>ForwardA = ${fwdA.signal}</strong></span>
+                </div>
+                <div class="mux-sources-row">
+                  <div class="mux-source-pill ${fwdA.signal === '00' ? 'selected' : 'dimmed'}">
+                    <span class="sig-num">00</span>
+                    <span class="sig-name">ID/EX</span>
+                    <span class="sig-val">${fwdA.staleVal !== null ? fwdA.staleVal : '--'}</span>
+                  </div>
+                  <div class="mux-source-pill ${fwdA.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
+                    <span class="sig-num">10</span>
+                    <span class="sig-name">EX/MEM (1 ciclo)</span>
+                    <span class="sig-val">${fwdA.signal === '10' ? fwdA.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
+                  </div>
+                  <div class="mux-source-pill ${fwdA.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
+                    <span class="sig-num">01</span>
+                    <span class="sig-name">MEM/WB (2 ciclos)</span>
+                    <span class="sig-val">${fwdA.signal === '01' ? fwdA.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
+                  </div>
+                </div>
+                <div class="mux-output-wire ${fwdA.active ? 'wire-active' : ''}">
+                  <span>Entrada Superior da ULA:</span>
+                  <strong class="wire-val">${fwdA.active ? fwdA.freshVal : (fwdA.staleVal !== null ? fwdA.staleVal : '--')}</strong>
+                  ${fwdA.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
+                </div>
+              </div>
+
+              <!-- Mux B -->
+              <div class="fwd-mux-block ${fwdB.active ? 'active' : ''}">
+                <div class="mux-block-header">
+                  <span class="mux-tag">MUX B (Rt: <code>${fwdB.reg || '--'}</code>)</span>
+                  <span class="mux-sig-value">Sinal: <strong>ForwardB = ${fwdB.signal}</strong></span>
+                </div>
+                <div class="mux-sources-row">
+                  <div class="mux-source-pill ${fwdB.signal === '00' ? 'selected' : 'dimmed'}">
+                    <span class="sig-num">00</span>
+                    <span class="sig-name">ID/EX</span>
+                    <span class="sig-val">${fwdB.staleVal !== null ? fwdB.staleVal : '--'}</span>
+                  </div>
+                  <div class="mux-source-pill ${fwdB.signal === '10' ? 'selected active-fwd' : 'dimmed'}">
+                    <span class="sig-num">10</span>
+                    <span class="sig-name">EX/MEM (1 ciclo)</span>
+                    <span class="sig-val">${fwdB.signal === '10' ? fwdB.freshVal : (cur.MEM && !cur.MEM.empty ? getInstructionExecutionValue(cur.MEM.instIndex) : '--')}</span>
+                  </div>
+                  <div class="mux-source-pill ${fwdB.signal === '01' ? 'selected active-fwd' : 'dimmed'}">
+                    <span class="sig-num">01</span>
+                    <span class="sig-name">MEM/WB (2 ciclos)</span>
+                    <span class="sig-val">${fwdB.signal === '01' ? fwdB.freshVal : (cur.WB && !cur.WB.empty ? getInstructionExecutionValue(cur.WB.instIndex) : '--')}</span>
+                  </div>
+                </div>
+                <div class="mux-output-wire ${fwdB.active ? 'wire-active' : ''}">
+                  <span>Entrada Inferior da ULA:</span>
+                  <strong class="wire-val">${fwdB.active ? fwdB.freshVal : (fwdB.staleVal !== null ? fwdB.staleVal : '--')}</strong>
+                  ${fwdB.active ? '<span class="wire-gain">Adiantado sem bolha</span>' : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="fwd-c-code-box">
+              <div class="fwd-c-code">/* Logica de Forwarding Patterson & Hennessy (Prova 2 UFSM) */
+if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) ForwardA = 0b10;
+if (EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) ForwardB = 0b10;
+if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) && !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRs)) && (MEM_WB.RegisterRd == ID_EX.RegisterRs)) ForwardA = 0b01;
+if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) && !(EX_MEM.RegWrite && (EX_MEM.RegisterRd != 0) && (EX_MEM.RegisterRd == ID_EX.RegisterRt)) && (MEM_WB.RegisterRd == ID_EX.RegisterRt)) ForwardB = 0b01;</div>
+            </div>
+          </div>
+        `;
+      }
+
       wires.innerHTML = wireHtml;
 
-      const btnToggle = document.getElementById('btnToggleFwdCode');
-      const codeBox = document.getElementById('fwdCodeBox');
-      if (btnToggle && codeBox) {
+      const btnToggle = document.getElementById('btnToggleFwdDetails');
+      if (btnToggle) {
         btnToggle.addEventListener('click', () => {
-          const isHidden = codeBox.style.display === 'none';
-          codeBox.style.display = isHidden ? 'block' : 'none';
-          btnToggle.querySelector('span').textContent = isHidden ? 'Ocultar Codigo em C' : 'Ver Codigo em C da Prova';
+          state.showFwdDetails = !state.showFwdDetails;
+          renderDatapathFlow();
         });
+      }
+
+      const btnQuickEn = document.getElementById('btnFwdQuickEnable');
+      if (btnQuickEn) {
+        btnQuickEn.addEventListener('click', toggleForwarding);
       }
     }
   }
@@ -1941,7 +1891,7 @@ if (MEM_WB.RegWrite && (MEM_WB.RegisterRd != 0) &&
       const val = regs[r] !== undefined ? regs[r] : 0;
       html += `
         <div class="reg-chip">
-          <span class="reg-name">${r}</span>
+          <span class="reg-name">${r}:</span>
           <span class="reg-val">${val}</span>
         </div>
       `;
