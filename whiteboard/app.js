@@ -7070,11 +7070,54 @@ window.getViewCenter = function() {
   return screenToCanvas(w / 2, h / 2);
 };
 
+window.centerOnPoint = function(cx, cy) {
+  const w = (wrapper && wrapper.clientWidth) ? wrapper.clientWidth : (width || window.innerWidth);
+  const h = (wrapper && wrapper.clientHeight) ? wrapper.clientHeight : (height || window.innerHeight);
+  panX = Math.round(w / 2 - cx * zoom);
+  panY = Math.round(h / 2 - cy * zoom);
+  render();
+};
+
+window.ensureBoxVisible = function(bx, by, bw, bh, padding = 40) {
+  const w = (wrapper && wrapper.clientWidth) ? wrapper.clientWidth : (width || window.innerWidth);
+  const h = (wrapper && wrapper.clientHeight) ? wrapper.clientHeight : (height || window.innerHeight);
+
+  const screenLeft = bx * zoom + panX;
+  const screenRight = (bx + bw) * zoom + panX;
+  const screenTop = by * zoom + panY;
+  const screenBottom = (by + bh) * zoom + panY;
+
+  let moved = false;
+  if (screenBottom > h - padding) {
+    panY -= (screenBottom - (h - padding));
+    moved = true;
+  }
+  if (screenTop < padding) {
+    panY += (padding - screenTop);
+    moved = true;
+  }
+  if (screenRight > w - padding) {
+    panX -= (screenRight - (w - padding));
+    moved = true;
+  }
+  if (screenLeft < padding) {
+    panX += (padding - screenLeft);
+    moved = true;
+  }
+
+  if (moved) {
+    render();
+  }
+};
+
+window.getCachedElementBBox = getCachedElementBBox;
+
 window.setSelectedElements = function(newSelection) {
   selectedElements = Array.isArray(newSelection) ? [...newSelection] : [];
   selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
   renderOverlay();
 };
+
 
 window.addElementsToBoard = function(newElementsList, autoSelect = true) {
   if (!Array.isArray(newElementsList) || newElementsList.length === 0) return;

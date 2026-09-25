@@ -926,8 +926,79 @@
     const totalCols = Math.min(14, Math.max(state.maxCycles || 5, 5));
 
     const totalWidth = 190 + totalCols * colWidth;
-    const startX = Math.round(origin.x - totalWidth / 2);
-    const startY = Math.round(origin.y - (50 + numInsts * rowHeight + 35) / 2);
+    const totalHeight = 104 + numInsts * rowHeight;
+    let startX = Math.round(origin.x - totalWidth / 2);
+    let startY = Math.round(origin.y - totalHeight / 2 + 48);
+
+    // ==================== Separacao Automatica de Copias ====================
+    // Evita sobreposicao quando o usuario clica "Copiar para o quadro" mais de uma vez
+    const existingElements = Array.isArray(global.elements) ? global.elements : [];
+    const gap = 48; // Distancia vertical limpa entre diagramas consecutivos
+
+    function getElementBounds(el) {
+      if (typeof global.getCachedElementBBox === 'function') {
+        const b = global.getCachedElementBBox(el);
+        if (b) return b;
+      }
+      if (el.type === 'rect' || el.type === 'image') {
+        const rx = Math.min(el.x1 !== undefined ? el.x1 : 0, el.x2 !== undefined ? el.x2 : 0);
+        const ry = Math.min(el.y1 !== undefined ? el.y1 : 0, el.y2 !== undefined ? el.y2 : 0);
+        const rw = Math.abs((el.x2 || 0) - (el.x1 || 0));
+        const rh = Math.abs((el.y2 || 0) - (el.y1 || 0));
+        return { x: rx, y: ry, width: rw, height: rh };
+      }
+      if (el.type === 'text') {
+        return { x: el.x || 0, y: el.y || 0, width: (el.text || '').length * 9, height: (el.fontSize || 12) * 1.3 };
+      }
+      return { x: el.x || el.x1 || 0, y: el.y || el.y1 || 0, width: 60, height: 60 };
+    }
+
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    while (attempts < maxAttempts) {
+      const currentBox = {
+        x: startX - 10,
+        y: startY - 48,
+        width: totalWidth + 20,
+        height: totalHeight
+      };
+
+      let hasOverlap = false;
+      let lowestBottom = startY - 48;
+      let alignedStartX = null;
+
+      for (let i = 0; i < existingElements.length; i++) {
+        const el = existingElements[i];
+        if (!el) continue;
+        const b = getElementBounds(el);
+        if (!b) continue;
+
+        const overlapX = !(currentBox.x + currentBox.width < b.x || currentBox.x > b.x + b.width);
+        const overlapY = !(currentBox.y + currentBox.height < b.y || currentBox.y > b.y + b.height);
+
+        if (overlapX && overlapY) {
+          hasOverlap = true;
+          const bBottom = b.y + b.height;
+          if (bBottom > lowestBottom) {
+            lowestBottom = bBottom;
+          }
+          if (el.id && el.id.startsWith('pipe-title-') && el.x1 !== undefined) {
+            alignedStartX = Math.round(el.x1 + 10);
+          }
+        }
+      }
+
+      if (!hasOverlap) {
+        break;
+      }
+
+      if (alignedStartX !== null) {
+        startX = alignedStartX;
+      }
+      startY = Math.round(lowestBottom + gap + 48);
+      attempts++;
+    }
 
     const newElements = [];
     const now = Date.now();
@@ -1083,12 +1154,18 @@
       return;
     }
 
+    // Garante que o novo diagrama fique visivel no viewport do usuario sem cortar
+    if (typeof global.ensureBoxVisible === 'function') {
+      global.ensureBoxVisible(startX - 10, startY - 48, totalWidth + 20, totalHeight, 40);
+    }
+
     if (typeof global.showToast === 'function') {
       global.showToast('Diagrama do pipeline copiado para o quadro branco!');
     }
 
     closeModal();
   }
+
 
 
   // ==================== Interface Grafica (HTML & Renderizacao) ====================
