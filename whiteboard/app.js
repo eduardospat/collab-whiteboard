@@ -870,8 +870,13 @@ function receiveBoardChanges(changes) {
 function rehydrateImages() {
   elements.forEach(el => {
     if (el.type === 'image') {
+      if (!el.src) return;
       if (el.imgObj && el.imgObj.complete) {
-        imageCache.set(el.src, el.imgObj);
+        if (el.imgObj.naturalWidth > 0 && !el.imgObj._broken) {
+          imageCache.set(el.src, el.imgObj);
+        } else {
+          el.imgObj._broken = true;
+        }
         return;
       }
       if (imageCache.has(el.src)) {
@@ -880,13 +885,24 @@ function rehydrateImages() {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
+          img._broken = false;
           imageCache.set(el.src, img);
-          render();
+          requestRenderAll();
+        };
+        img.onerror = () => {
+          img._broken = true;
+          imageCache.set(el.src, img);
+          requestRenderAll();
         };
         img.src = el.src;
         el.imgObj = img;
         if (img.complete) {
-          imageCache.set(el.src, img);
+          if (img.naturalWidth > 0) {
+            img._broken = false;
+            imageCache.set(el.src, img);
+          } else {
+            img._broken = true;
+          }
         }
       }
     }
@@ -1065,12 +1081,20 @@ function renderBase() {
         continue; // Skip offscreen element completely
       }
     }
-    drawElement(ctx, el);
+    try {
+      drawElement(ctx, el);
+    } catch (err) {
+      console.warn('Erro ao desenhar elemento:', err, el);
+    }
   }
 
   // Fallback if overlay canvas is absent: render overlays on base canvas
   if (!overlayCtx) {
-    renderOverlayElements(ctx);
+    try {
+      renderOverlayElements(ctx);
+    } catch (err) {
+      console.warn('Erro ao desenhar overlay:', err);
+    }
   }
 
   ctx.restore();
@@ -1223,6 +1247,44 @@ function drawSmoothSpline(context, pts) {
   const lastCp2x = pLast.x - (pLast.x - pPrev.x) * 0.25;
   const lastCp2y = pLast.y - (pLast.y - pPrev.y) * 0.25;
   context.bezierCurveTo(lastCp1x, lastCp1y, lastCp2x, lastCp2y, pLast.x, pLast.y);
+}
+
+function drawBrokenImagePlaceholder(context, el) {
+  const w = Math.max(30, el.width || 200);
+  const h = Math.max(30, el.height || 150);
+  context.save();
+  context.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+  context.lineWidth = 1;
+  context.setLineDash([4, 4]);
+  context.fillStyle = 'rgba(239, 68, 68, 0.05)';
+  context.fillRect(el.x, el.y, w, h);
+  context.strokeRect(el.x, el.y, w, h);
+
+  context.fillStyle = '#ef4444';
+  context.font = '11px Inter, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('Imagem indisponivel', el.x + w / 2, el.y + h / 2);
+  context.restore();
+}
+
+function drawLoadingImagePlaceholder(context, el) {
+  const w = Math.max(30, el.width || 200);
+  const h = Math.max(30, el.height || 150);
+  context.save();
+  context.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+  context.lineWidth = 1;
+  context.setLineDash([3, 3]);
+  context.fillStyle = 'rgba(241, 245, 249, 0.02)';
+  context.fillRect(el.x, el.y, w, h);
+  context.strokeRect(el.x, el.y, w, h);
+
+  context.fillStyle = '#94a3b8';
+  context.font = '11px Inter, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('Carregando imagem...', el.x + w / 2, el.y + h / 2);
+  context.restore();
 }
 
 function drawElement(context, el) {
@@ -1600,13 +1662,37 @@ function drawElement(context, el) {
     context.fillText(el.text, el.x, el.y);
   }
   else if (el.type === 'image') {
-    if (el.imgObj && el.imgObj.complete) {
-      context.drawImage(el.imgObj, el.x, el.y, el.width, el.height);
+    const isLoaded = el.imgObj && el.imgObj.complete && el.imgObj.naturalWidth > 0 && el.imgObj.naturalHeight > 0 && !el.imgObj._broken;
+    if (isLoaded) {
+      try {
+        context.drawImage(el.imgObj, el.x, el.y, el.width, el.height);
+      } catch (err) {
+        drawBrokenImagePlaceholder(context, el);
+      }
+    } else if (el.imgObj && (el.imgObj._broken || (el.imgObj.complete && el.imgObj.naturalWidth === 0))) {
+      drawBrokenImagePlaceholder(context, el);
     } else if (!el.imgObj) {
-      const img = new Image();
-      img.onload = () => render();
-      img.src = el.src;
-      el.imgObj = img;
+      if (imageCache.has(el.src)) {
+        el.imgObj = imageCache.get(el.src);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          img._broken = false;
+          imageCache.set(el.src, img);
+          requestRenderAll();
+        };
+        img.onerror = () => {
+          img._broken = true;
+          imageCache.set(el.src, img);
+          requestRenderAll();
+        };
+        img.src = el.src;
+        el.imgObj = img;
+      }
+      drawLoadingImagePlaceholder(context, el);
+    } else {
+      drawLoadingImagePlaceholder(context, el);
     }
   }
 
